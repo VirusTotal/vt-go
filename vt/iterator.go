@@ -62,10 +62,15 @@ type collectionObject struct {
 
 // IteratorOptions are the options passed to Iterator.
 type IteratorOptions struct {
-	Limit     int
+	// Maximum number of items returned by the iterator.
+	Limit int
+	// Number of items retrieved on each call to the the API.
 	BatchSize int
-	Cursor    string
-	Filter    string
+	// Continuation cursor for starting the iteration where we left.
+	Cursor string
+	// Filter string. The format for the filter depends on the collection being
+	// iterated.
+	Filter string
 }
 
 // Iterator represents a iterator over a collection of VirusTotal objects.
@@ -120,7 +125,10 @@ func newIterator(cli *Client, u *url.URL, options IteratorOptions) (*Iterator, e
 // used like this:
 //
 //  cli := vt.Client(<api key>)
-//  it := cli.Iterator(vt.URL(<collection path>), options)
+//  it, err := cli.Iterator(vt.URL(<collection path>), options)
+//  if err != nil {
+//	  ...handle error
+//  }
 //  defer it.Close()
 //  for it.Next() {
 //    obj := it.Get()
@@ -227,7 +235,7 @@ func (it *Iterator) getMoreObjects() ([]*Object, error) {
 func (it *Iterator) iterate(skip int) {
 	sent := 0
 loop:
-	for sent < it.limit {
+	for it.limit == 0 || sent < it.limit {
 		// Send request to the API to get more objects.
 		objects, err := it.getMoreObjects()
 		if err != nil {
