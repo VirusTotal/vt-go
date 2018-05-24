@@ -181,7 +181,7 @@ func (it *Iterator) Close() {
 	}
 }
 
-// Error returns any error ocurred during the iteration of a collection.
+// Error returns any error occurred during the iteration of a collection.
 func (it *Iterator) Error() error {
 	return it.err
 }
