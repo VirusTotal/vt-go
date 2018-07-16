@@ -20,8 +20,9 @@ import (
 
 // ObjectDescriptor is a pair (ID, type) describing a VirusTotal API object.
 type ObjectDescriptor struct {
-	ID   string `json:"id,omitempty"`
-	Type string `json:"type,omitempty"`
+	ID                string                 `json:"id,omitempty"`
+	Type              string                 `json:"type,omitempty"`
+	ContextAttributes map[string]interface{} `json:"context_attributes,omitempty"`
 }
 
 // Object represents a VirusTotal API object.
