@@ -26,11 +26,12 @@ type ObjectDescriptor struct {
 
 // Object represents a VirusTotal API object.
 type Object struct {
-	ID            string                   `json:"id,omitempty"`
-	Type          string                   `json:"type,omitempty"`
-	Attributes    map[string]interface{}   `json:"attributes,omitempty"`
-	Relationships map[string]*Relationship `json:"relationships,omitempty"`
-	Links         Links                    `json:"links,omitempty"`
+	ID                string                   `json:"id,omitempty"`
+	Type              string                   `json:"type,omitempty"`
+	Attributes        map[string]interface{}   `json:"attributes,omitempty"`
+	ContextAttributes map[string]interface{}   `json:"context_attributes,omitempty"`
+	Relationships     map[string]*Relationship `json:"relationships,omitempty"`
+	Links             Links                    `json:"links,omitempty"`
 }
 
 // Links contains links related to an API object.
