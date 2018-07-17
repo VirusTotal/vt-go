@@ -70,6 +70,7 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	obj.Type = o.Type
 	obj.ID = o.ID
 	obj.Attributes = o.Attributes
+	obj.ContextAttributes = o.ContextAttributes
 	obj.Relationships = o.Relationships
 
 	for k, v := range obj.Attributes {
