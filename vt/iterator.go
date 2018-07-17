@@ -85,6 +85,7 @@ type Iterator struct {
 	count  int
 	cursor string
 	links  Links
+	meta   map[string]interface{}
 }
 
 func newIterator(cli *Client, u *url.URL, options IteratorOptions) (*Iterator, error) {
@@ -181,6 +182,12 @@ func (it *Iterator) Close() {
 	}
 }
 
+// Meta returns the metadata returned by the server during the last call to
+// the collection's endpoint.
+func (it *Iterator) Meta() map[string]interface{} {
+	return it.meta
+}
+
 // Error returns any error occurred during the iteration of a collection.
 func (it *Iterator) Error() error {
 	return it.err
@@ -229,6 +236,7 @@ func (it *Iterator) getMoreObjects() ([]*Object, error) {
 		return nil, err
 	}
 	it.links = resp.Links
+	it.meta = resp.Meta
 	return objs, nil
 }
 

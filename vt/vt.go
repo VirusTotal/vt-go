@@ -45,9 +45,10 @@ type Request struct {
 
 // Response is the top level structure of an API response.
 type Response struct {
-	Data  json.RawMessage `json:"data"`
-	Links Links           `json:"links"`
-	Error Error           `json:"error"`
+	Data  json.RawMessage        `json:"data"`
+	Meta  map[string]interface{} `json:"meta"`
+	Links Links                  `json:"links"`
+	Error Error                  `json:"error"`
 }
 
 // Error contains information about an API error.
