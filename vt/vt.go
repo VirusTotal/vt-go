@@ -26,7 +26,7 @@ const (
 	version = "0.1"
 )
 
-const (
+var (
 	apiScheme      = "https"
 	apiHost        = "www.virustotal.com"
 	apiPrefix      = "api/v3/"
@@ -70,4 +70,11 @@ func URL(pathFmt string, a ...interface{}) *url.URL {
 	path := fmt.Sprintf(pathFmt, a...)
 	url, _ := url.Parse(path)
 	return baseURL.ResolveReference(url)
+}
+
+// SetHost allows to change the host used while sending requests to the
+// VirusTotal API. The default host is "www.virustotal.com" you rarely need to
+// change it.
+func SetHost(host string) {
+	apiHost = host
 }
