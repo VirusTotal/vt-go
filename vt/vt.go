@@ -26,17 +26,14 @@ const (
 	version = "0.1"
 )
 
-var (
-	apiScheme      = "https"
-	apiHost        = "www.virustotal.com"
-	apiPrefix      = "api/v3/"
-	payloadMaxSize = int64(30 * 1024 * 1024) // 30 MB
+const (
+	payloadMaxSize = 30 * 1024 * 1024 // 30 MB
 )
 
 var baseURL = url.URL{
-	Scheme: apiScheme,
-	Host:   apiHost,
-	Path:   apiPrefix}
+	Scheme: "https",
+	Host:   "www.virustotal.com",
+	Path:   "api/v3/"}
 
 // Request is the top level structure of an API request.
 type Request struct {
@@ -76,5 +73,5 @@ func URL(pathFmt string, a ...interface{}) *url.URL {
 // VirusTotal API. The default host is "www.virustotal.com" you rarely need to
 // change it.
 func SetHost(host string) {
-	apiHost = host
+	baseURL.Host = host
 }
