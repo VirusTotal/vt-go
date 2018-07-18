@@ -30,7 +30,7 @@ var (
 	apiScheme      = "https"
 	apiHost        = "www.virustotal.com"
 	apiPrefix      = "api/v3/"
-	payloadMaxSize = 30 * 1024 * 1024 // 30 MB
+	payloadMaxSize = int64(30 * 1024 * 1024) // 30 MB
 )
 
 var baseURL = url.URL{
