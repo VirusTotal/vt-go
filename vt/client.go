@@ -26,7 +26,13 @@ import (
 
 // Client for interacting with VirusTotal API.
 type Client struct {
-	APIKey     string
+	// APIKey is the VirusTotal API key that identifies the user making the
+	// requests.
+	APIKey string
+	// Agent is a string included in the User-Agent header of every request
+	// sent to VirusTotal's servers. Users of this client are encourage to
+	// use some string that uniquely indentify the program making the requests.
+	Agent      string
 	httpClient *http.Client
 }
 
@@ -42,11 +48,15 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	if err != nil {
 		return nil, err
 	}
+	agent := cli.Agent
+	if agent == "" {
+		agent = "unknown"
+	}
 	// AppEngine server decides whether or not it should serve gzipped content
 	// based on Accept-Encoding and User-Agent. Non-standard UAs are not served
 	// with gzipped content unless it contains the string "gzip" somewhere.
 	// See: https://cloud.google.com/appengine/kb/#compression
-	req.Header.Set("User-Agent", fmt.Sprintf("vtgo %s; gzip", version))
+	req.Header.Set("User-Agent", fmt.Sprintf("%s; vtgo %s; gzip", agent, version))
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Apikey", cli.APIKey)
 
