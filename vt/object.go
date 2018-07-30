@@ -15,7 +15,6 @@ package vt
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // ObjectDescriptor is a pair (ID, type) describing a VirusTotal API object.
@@ -83,7 +82,6 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 		// Try unmarshalling as an array first, if it fails this is a one-to-one
 		// relationship, so we should try unmarshalling a single object descriptor.
 		if err := json.Unmarshal(v.Data, &v.RelatedObjects); err != nil {
-			fmt.Println(err)
 			v.IsOneToOne = true
 			var o ObjectDescriptor
 			if err = json.Unmarshal(v.Data, &o); err != nil {
