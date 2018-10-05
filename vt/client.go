@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -220,6 +221,30 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 	}
 	defer resp.Body.Close()
 	return io.Copy(w, resp.Body)
+}
+
+// GetSignedFileDownloadURL returns a signed URL for downloading
+func (cli *Client) GetSignedFileDownloadURL(hash string) (string, error) {
+	u := URL("files/%s/download", hash)
+
+	cli.httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	resp, err := cli.sendRequest("GET", u, nil, nil)
+	cli.httpClient.CheckRedirect = nil // reset for other client users
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusFound { //status code 302
+		loc, _ := resp.Location()
+		return loc.String(), nil
+	}
+	vtErr := Error{Message: "VTClient: did not redirect"}
+	vtErr.Code = strconv.Itoa(resp.StatusCode)
+	return "", vtErr
 }
 
 // SearchOptions is a structure with options for Search.
