@@ -36,6 +36,31 @@ type Client struct {
 	httpClient *http.Client
 }
 
+type options struct {
+	headers map[string]string
+}
+
+// Option represents an option passed to some functions in this package.
+type Option func(*options)
+
+// WithHeader specifies a header to be included in the request.
+func WithHeader(header, value string) Option {
+	return func(opts *options) {
+		if opts.headers == nil {
+			opts.headers = make(map[string]string)
+		}
+		opts.headers[header] = value
+	}
+}
+
+func opts(opts ...Option) *options {
+	o := &options{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
+}
+
 // NewClient creates a new client for interacting with the VirusTotal API using
 // the provided API key.
 func NewClient(APIKey string) *Client {
@@ -108,8 +133,9 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 }
 
 // Get sends a GET request to the specified API endpoint.
-func (cli *Client) Get(url *url.URL) (*Response, error) {
-	httpResp, err := cli.sendRequest("GET", url, nil, nil)
+func (cli *Client) Get(url *url.URL, options ...Option) (*Response, error) {
+	o := opts(options...)
+	httpResp, err := cli.sendRequest("GET", url, nil, o.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +144,7 @@ func (cli *Client) Get(url *url.URL) (*Response, error) {
 }
 
 // Post sends a POST request to the specified API endpoint.
-func (cli *Client) Post(url *url.URL, req *Request) (*Response, error) {
+func (cli *Client) Post(url *url.URL, req *Request, options ...Option) (*Response, error) {
 	var b []byte
 	var err error
 	if req != nil {
@@ -127,7 +153,8 @@ func (cli *Client) Post(url *url.URL, req *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	httpResp, err := cli.sendRequest("POST", url, bytes.NewReader(b), nil)
+	o := opts(options...)
+	httpResp, err := cli.sendRequest("POST", url, bytes.NewReader(b), o.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +163,7 @@ func (cli *Client) Post(url *url.URL, req *Request) (*Response, error) {
 }
 
 // Patch sends a PATCH request to the specified API endpoint.
-func (cli *Client) Patch(url *url.URL, req *Request) (*Response, error) {
+func (cli *Client) Patch(url *url.URL, req *Request, options ...Option) (*Response, error) {
 	var b []byte
 	var err error
 	if req != nil {
@@ -145,7 +172,8 @@ func (cli *Client) Patch(url *url.URL, req *Request) (*Response, error) {
 			return nil, err
 		}
 	}
-	httpResp, err := cli.sendRequest("PATCH", url, bytes.NewReader(b), nil)
+	o := opts(options...)
+	httpResp, err := cli.sendRequest("PATCH", url, bytes.NewReader(b), o.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +182,9 @@ func (cli *Client) Patch(url *url.URL, req *Request) (*Response, error) {
 }
 
 // Delete sends a DELETE request to the specified API endpoint.
-func (cli *Client) Delete(url *url.URL) (*Response, error) {
-	httpResp, err := cli.sendRequest("DELETE", url, nil, nil)
+func (cli *Client) Delete(url *url.URL, options ...Option) (*Response, error) {
+	o := opts(options...)
+	httpResp, err := cli.sendRequest("DELETE", url, nil, o.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +196,8 @@ func (cli *Client) Delete(url *url.URL) (*Response, error) {
 // JSON-encoded data received in the API response. The unmarshalled data is put
 // into the specified target. The target must be of an appropriate type capable
 // of receiving the data returned by the the endpoint.
-func (cli *Client) GetData(url *url.URL, target interface{}) (*Response, error) {
-	resp, err := cli.Get(url)
+func (cli *Client) GetData(url *url.URL, target interface{}, options ...Option) (*Response, error) {
+	resp, err := cli.Get(url, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,9 +208,9 @@ func (cli *Client) GetData(url *url.URL, target interface{}) (*Response, error) 
 // an object, not a collection. This means that GetObject can be used with paths
 // like /files/{file_id} and /urls/{url_id}, which return an individual object
 // but not with /comments, which returns a collection of objects.
-func (cli *Client) GetObject(url *url.URL) (*Object, error) {
+func (cli *Client) GetObject(url *url.URL, options ...Option) (*Object, error) {
 	obj := &Object{}
-	if _, err := cli.GetData(url, obj); err != nil {
+	if _, err := cli.GetData(url, obj, options...); err != nil {
 		return nil, err
 	}
 	return obj, nil
@@ -189,10 +218,10 @@ func (cli *Client) GetObject(url *url.URL) (*Object, error) {
 
 // CreateObject adds an Object to a collection. The specified path must reference
 // a collection, not an object, but not all collections accept this operation.
-func (cli *Client) CreateObject(url *url.URL, obj *Object) error {
+func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...Option) error {
 	req := &Request{}
 	req.Data = obj
-	resp, err := cli.Post(url, req)
+	resp, err := cli.Post(url, req, options...)
 	if err != nil {
 		return err
 	}
@@ -200,10 +229,10 @@ func (cli *Client) CreateObject(url *url.URL, obj *Object) error {
 }
 
 // PatchObject modifies an existing object.
-func (cli *Client) PatchObject(url *url.URL, obj *Object) error {
+func (cli *Client) PatchObject(url *url.URL, obj *Object, options ...Option) error {
 	req := &Request{}
 	req.Data = obj
-	resp, err := cli.Patch(url, req)
+	resp, err := cli.Patch(url, req, options...)
 	if err != nil {
 		return err
 	}
