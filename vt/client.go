@@ -201,7 +201,17 @@ func (cli *Client) GetData(url *url.URL, target interface{}, options ...Option) 
 	if err != nil {
 		return nil, err
 	}
-	return resp, json.Unmarshal(resp.Data, target)
+	decoder := json.NewDecoder(bytes.NewReader(resp.Data))
+	decoder.UseNumber()
+	return resp, decoder.Decode(target)
+}
+
+// PostData sends a POST request to the specified API endpoint. The data argument
+// is JSON-encoded and wrapped as {'data': <JSON-encoded data> }.
+func (cli *Client) PostData(url *url.URL, data interface{}, options ...Option) (*Response, error) {
+	req := &Request{}
+	req.Data = data
+	return cli.Post(url, req, options...)
 }
 
 // GetObject returns an Object from a path. The specified path must reference

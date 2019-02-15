@@ -14,6 +14,7 @@
 package vt
 
 import (
+	"bytes"
 	"encoding/json"
 )
 
@@ -61,8 +62,11 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 
 	type object Object
 
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+
 	o := object{}
-	if err := json.Unmarshal(data, &o); err != nil {
+	if err := decoder.Decode(&o); err != nil {
 		return err
 	}
 
@@ -71,12 +75,6 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	obj.Attributes = o.Attributes
 	obj.ContextAttributes = o.ContextAttributes
 	obj.Relationships = o.Relationships
-
-	for k, v := range obj.Attributes {
-		if f, isFloat := v.(float64); isFloat {
-			obj.Attributes[k] = int64(f)
-		}
-	}
 
 	for _, v := range obj.Relationships {
 		// Try unmarshalling as an array first, if it fails this is a one-to-one
@@ -92,4 +90,48 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func (obj *Object) getAttributeNumber(name string) (json.Number, bool) {
+	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+		n, isNumber := attrValue.(json.Number)
+		return n, isNumber
+	}
+	return json.Number(""), false
+}
+
+// GetAttributeInt64 returns an attribute as an int64. It returns the attribute's
+// value and a boolean indicating that the attribute exists and is a number.
+func (obj *Object) GetAttributeInt64(name string) (int64, bool) {
+	n, isNumber := obj.getAttributeNumber(name)
+	if isNumber {
+		f, err := n.Int64()
+		if err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// GetAttributeFloat64 returns an attribute as a float64. It returns the attribute's
+// value and a boolean indicating that the attribute exists and is a number.
+func (obj *Object) GetAttributeFloat64(name string) (float64, bool) {
+	n, isNumber := obj.getAttributeNumber(name)
+	if isNumber {
+		f, err := n.Float64()
+		if err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// GetAttributeString returns an attribute as a string. It returns the attribute's
+// value and a boolean indicating that the attribute exists and is a string.
+func (obj *Object) GetAttributeString(name string) (string, bool) {
+	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+		s, isString := attrValue.(string)
+		return s, isString
+	}
+	return "", false
 }
