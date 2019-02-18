@@ -100,6 +100,14 @@ func (obj *Object) getAttributeNumber(name string) (json.Number, bool) {
 	return json.Number(""), false
 }
 
+func (obj *Object) getContextAttributeNumber(name string) (json.Number, bool) {
+	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
+		n, isNumber := attrValue.(json.Number)
+		return n, isNumber
+	}
+	return json.Number(""), false
+}
+
 // GetAttributeInt64 returns an attribute as an int64. It returns the attribute's
 // value and a boolean indicating that the attribute exists and is a number.
 func (obj *Object) GetAttributeInt64(name string) (int64, bool) {
@@ -130,6 +138,45 @@ func (obj *Object) GetAttributeFloat64(name string) (float64, bool) {
 // value and a boolean indicating that the attribute exists and is a string.
 func (obj *Object) GetAttributeString(name string) (string, bool) {
 	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+		s, isString := attrValue.(string)
+		return s, isString
+	}
+	return "", false
+}
+
+// GetContextAttributeInt64 returns a context attribute as an int64. It returns
+// the attribute's value and a boolean indicating that the context attribute
+// exists and is a number.
+func (obj *Object) GetContextAttributeInt64(name string) (int64, bool) {
+	n, isNumber := obj.getContextAttributeNumber(name)
+	if isNumber {
+		f, err := n.Int64()
+		if err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// GetContextAttributeFloat64 returns a context attribute as an float64. It
+// returns the attribute's value and a boolean indicating that the context
+// attribute exists and is a number.
+func (obj *Object) GetContextAttributeFloat64(name string) (float64, bool) {
+	n, isNumber := obj.getContextAttributeNumber(name)
+	if isNumber {
+		f, err := n.Float64()
+		if err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+// GetContextAttributeString returns a context attribute as a string. It returns
+// the attribute's svalue and a boolean indicating that the context attribute
+// exists and is a string.
+func (obj *Object) GetContextAttributeString(name string) (string, bool) {
+	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
 		s, isString := attrValue.(string)
 		return s, isString
 	}
