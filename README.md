@@ -1,4 +1,6 @@
 [![GoDoc](https://godoc.org/github.com/VirusTotal/vt-go?status.svg)](https://godoc.org/github.com/VirusTotal/vt-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/VirusTotal/vt-go)](https://goreportcard.com/report/github.com/VirusTotal/vt-go)
+
 
 # vt-go
 
