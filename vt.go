@@ -11,9 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
-Package vt is a client library for the VirusTotal API
-*/
+//
+// Package vt is a client library for the VirusTotal API v3. It makes the use
+// of the VirusTotal's REST API easier to Go developer.
+//
 package vt
 
 import (
@@ -23,7 +24,7 @@ import (
 )
 
 const (
-	version = "0.2"
+	version = "0.3"
 )
 
 const (
@@ -59,10 +60,10 @@ func (e Error) Error() string {
 	return e.Message
 }
 
-// URL returns a full VirusTotal API URL from a relative path (i.e: API paths
-// without the domain name and the "/api/v3" prefix). This function is useful
-// for creating URLs to be passed to all function expecting a *url.URL in this
-// library.
+// URL returns a full VirusTotal API URL from a relative path (i.e: a path
+// without the domain name and the "/api/v3/" prefix). The path can contain
+// format 'verbs' as defined in the "fmt". This function is useful for creating
+// URLs to be passed to any function expecting a *url.URL in this library.
 func URL(pathFmt string, a ...interface{}) *url.URL {
 	path := fmt.Sprintf(pathFmt, a...)
 	url, _ := url.Parse(path)

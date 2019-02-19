@@ -30,7 +30,7 @@ type Client struct {
 	// requests.
 	APIKey string
 	// Agent is a string included in the User-Agent header of every request
-	// sent to VirusTotal's servers. Users of this client are encourage to
+	// sent to VirusTotal's servers. Users of this client are encouraged to
 	// use some string that uniquely indentify the program making the requests.
 	Agent      string
 	httpClient *http.Client
@@ -132,7 +132,9 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 	return apiresp, nil
 }
 
-// Get sends a GET request to the specified API endpoint.
+// Get sends a GET request to the specified API endpoint. This is a low level
+// primitive that returns a Response struct, where the response's data is in
+// raw form. See GetObject and GetData for higher level primitives.
 func (cli *Client) Get(url *url.URL, options ...Option) (*Response, error) {
 	o := opts(options...)
 	httpResp, err := cli.sendRequest("GET", url, nil, o.headers)
@@ -214,20 +216,21 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...Option) (
 	return cli.Post(url, req, options...)
 }
 
-// GetObject returns an Object from a path. The specified path must reference
-// an object, not a collection. This means that GetObject can be used with paths
-// like /files/{file_id} and /urls/{url_id}, which return an individual object
-// but not with /comments, which returns a collection of objects.
-func (cli *Client) GetObject(url *url.URL, options ...Option) (*Object, error) {
-	obj := &Object{}
-	if _, err := cli.GetData(url, obj, options...); err != nil {
-		return nil, err
-	}
-	return obj, nil
-}
-
-// CreateObject adds an Object to a collection. The specified path must reference
+// CreateObject adds an Object to a collection. The specified URL must point to
 // a collection, not an object, but not all collections accept this operation.
+// For more information about collection and objects in the VirusTotal API see:
+//
+// https://developers.virustotal.com/v3.0/reference#objects
+// https://developers.virustotal.com/v3.0/reference#collections
+//
+// Example:
+//	obj := vt.NewObject()
+//	obj.Type = "hunting_ruleset"
+//	obj.Attributes["name"] = "test"
+//	obj.Attributes["rules"] = "rule test {condition: false}"
+//
+//	client.CreateObject(vt.URL("intelligence/hunting_rulesets"), obj)
+//
 func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...Option) error {
 	req := &Request{}
 	req.Data = obj
@@ -236,6 +239,18 @@ func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...Option) er
 		return err
 	}
 	return json.Unmarshal(resp.Data, obj)
+}
+
+// GetObject returns an Object from a URL. The specified URL must reference
+// an object, not a collection. This means that GetObject can be used with URLs
+// like /files/{file_id} and /urls/{url_id}, which return an individual object
+// but not with /comments, which returns a collection of objects.
+func (cli *Client) GetObject(url *url.URL, options ...Option) (*Object, error) {
+	obj := &Object{}
+	if _, err := cli.GetData(url, obj, options...); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 // PatchObject modifies an existing object.
@@ -282,7 +297,13 @@ func (cli *Client) Search(query string, options SearchOptions) (*Iterator, error
 // Metadata describes the structure returned by /api/v3/metadata with metadata
 // about VirusTotal, including the relationships supported by each object type.
 type Metadata struct {
-	Engines       map[string]interface{}        `json:"engines" yaml:"engines"`
+	// Dictionary where keys are the names of the Antivirus engines currently
+	// supported by VirusTotal.
+	Engines map[string]interface{} `json:"engines" yaml:"engines"`
+	// Dictionary containing the relationships supported by each object type in
+	// the VirusTotal API. Keys in this dictionary are object types, and values
+	// are a list of RelationshipMeta structures with information about the
+	// relationship.
 	Relationships map[string][]RelationshipMeta `json:"relationships" yaml:"relationships"`
 	Privileges    []string                      `json:"privileges" yaml:"privileges"`
 }
@@ -290,7 +311,9 @@ type Metadata struct {
 // RelationshipMeta is the structure returned by each relationship from the
 // /api/v3/metadata endpoint.
 type RelationshipMeta struct {
-	Name        string `json:"name" yaml:"name"`
+	// Name of the relationship.
+	Name string `json:"name" yaml:"name"`
+	// A verbose description for the relationship.
 	Description string `json:"description" yaml:"description"`
 }
 
