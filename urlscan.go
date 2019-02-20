@@ -24,7 +24,8 @@ type URLScanner struct {
 	cli *Client
 }
 
-// Scan sends URL to VirusTotal for scanning.
+// Scan sends a URL to VirusTotal for scanning. An analysis object is returned
+// as soon as the URL is submitted.
 func (s *URLScanner) Scan(url string) (*Object, error) {
 
 	b := bytes.Buffer{}
