@@ -43,7 +43,10 @@ type FileScanner struct {
 	cli *Client
 }
 
-// Scan sends a file to VirusTotal for scanning.
+// Scan sends a file to VirusTotal for scanning. The file content is read from
+// the r io.Reader and send to VirusTotal with the provided file name. The file
+// name can be left blank. The function also send a float32 through the progress
+// channel with the percentage of the file that has been already uploaded.
 func (s *FileScanner) Scan(r io.Reader, filename string, progress chan<- float32) (*Object, error) {
 
 	var uploadURL *url.URL
@@ -105,7 +108,8 @@ func (s *FileScanner) Scan(r io.Reader, filename string, progress chan<- float32
 	return analysis, nil
 }
 
-// ScanFile sends a file to VirusTotal for scanning.
+// ScanFile sends a file to VirusTotal for scanning. This function is similar to
+// Scan but it receive an *os.File instead of a io.Reader and a file name.
 func (s *FileScanner) ScanFile(f *os.File, progress chan<- float32) (*Object, error) {
 	return s.Scan(f, f.Name(), progress)
 }

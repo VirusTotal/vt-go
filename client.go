@@ -36,16 +36,16 @@ type Client struct {
 	httpClient *http.Client
 }
 
-type options struct {
+type requestOptions struct {
 	headers map[string]string
 }
 
-// Option represents an option passed to some functions in this package.
-type Option func(*options)
+// RequestOption represents an option passed to some functions in this package.
+type RequestOption func(*requestOptions)
 
 // WithHeader specifies a header to be included in the request.
-func WithHeader(header, value string) Option {
-	return func(opts *options) {
+func WithHeader(header, value string) RequestOption {
+	return func(opts *requestOptions) {
 		if opts.headers == nil {
 			opts.headers = make(map[string]string)
 		}
@@ -53,8 +53,8 @@ func WithHeader(header, value string) Option {
 	}
 }
 
-func opts(opts ...Option) *options {
-	o := &options{}
+func opts(opts ...RequestOption) *requestOptions {
+	o := &requestOptions{}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -135,7 +135,7 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 // Get sends a GET request to the specified API endpoint. This is a low level
 // primitive that returns a Response struct, where the response's data is in
 // raw form. See GetObject and GetData for higher level primitives.
-func (cli *Client) Get(url *url.URL, options ...Option) (*Response, error) {
+func (cli *Client) Get(url *url.URL, options ...RequestOption) (*Response, error) {
 	o := opts(options...)
 	httpResp, err := cli.sendRequest("GET", url, nil, o.headers)
 	if err != nil {
@@ -146,7 +146,7 @@ func (cli *Client) Get(url *url.URL, options ...Option) (*Response, error) {
 }
 
 // Post sends a POST request to the specified API endpoint.
-func (cli *Client) Post(url *url.URL, req *Request, options ...Option) (*Response, error) {
+func (cli *Client) Post(url *url.URL, req *Request, options ...RequestOption) (*Response, error) {
 	var b []byte
 	var err error
 	if req != nil {
@@ -165,7 +165,7 @@ func (cli *Client) Post(url *url.URL, req *Request, options ...Option) (*Respons
 }
 
 // Patch sends a PATCH request to the specified API endpoint.
-func (cli *Client) Patch(url *url.URL, req *Request, options ...Option) (*Response, error) {
+func (cli *Client) Patch(url *url.URL, req *Request, options ...RequestOption) (*Response, error) {
 	var b []byte
 	var err error
 	if req != nil {
@@ -184,7 +184,7 @@ func (cli *Client) Patch(url *url.URL, req *Request, options ...Option) (*Respon
 }
 
 // Delete sends a DELETE request to the specified API endpoint.
-func (cli *Client) Delete(url *url.URL, options ...Option) (*Response, error) {
+func (cli *Client) Delete(url *url.URL, options ...RequestOption) (*Response, error) {
 	o := opts(options...)
 	httpResp, err := cli.sendRequest("DELETE", url, nil, o.headers)
 	if err != nil {
@@ -198,7 +198,7 @@ func (cli *Client) Delete(url *url.URL, options ...Option) (*Response, error) {
 // JSON-encoded data received in the API response. The unmarshalled data is put
 // into the specified target. The target must be of an appropriate type capable
 // of receiving the data returned by the the endpoint.
-func (cli *Client) GetData(url *url.URL, target interface{}, options ...Option) (*Response, error) {
+func (cli *Client) GetData(url *url.URL, target interface{}, options ...RequestOption) (*Response, error) {
 	resp, err := cli.Get(url, options...)
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (cli *Client) GetData(url *url.URL, target interface{}, options ...Option) 
 
 // PostData sends a POST request to the specified API endpoint. The data argument
 // is JSON-encoded and wrapped as {'data': <JSON-encoded data> }.
-func (cli *Client) PostData(url *url.URL, data interface{}, options ...Option) (*Response, error) {
+func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOption) (*Response, error) {
 	req := &Request{}
 	req.Data = data
 	return cli.Post(url, req, options...)
@@ -231,7 +231,7 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...Option) (
 //
 //	client.CreateObject(vt.URL("intelligence/hunting_rulesets"), obj)
 //
-func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...Option) error {
+func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
 	req.Data = obj
 	resp, err := cli.Post(url, req, options...)
@@ -245,7 +245,7 @@ func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...Option) er
 // an object, not a collection. This means that GetObject can be used with URLs
 // like /files/{file_id} and /urls/{url_id}, which return an individual object
 // but not with /comments, which returns a collection of objects.
-func (cli *Client) GetObject(url *url.URL, options ...Option) (*Object, error) {
+func (cli *Client) GetObject(url *url.URL, options ...RequestOption) (*Object, error) {
 	obj := &Object{}
 	if _, err := cli.GetData(url, obj, options...); err != nil {
 		return nil, err
@@ -254,7 +254,7 @@ func (cli *Client) GetObject(url *url.URL, options ...Option) (*Object, error) {
 }
 
 // PatchObject modifies an existing object.
-func (cli *Client) PatchObject(url *url.URL, obj *Object, options ...Option) error {
+func (cli *Client) PatchObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
 	req.Data = obj
 	resp, err := cli.Patch(url, req, options...)
@@ -276,22 +276,13 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 	return io.Copy(w, resp.Body)
 }
 
-// SearchOptions is a structure with options for Search.
-type SearchOptions struct {
-	IteratorOptions
-	DescriptorsOnly bool
-}
-
 // Search for files using VirusTotal Intelligence query language.
-func (cli *Client) Search(query string, options SearchOptions) (*Iterator, error) {
+func (cli *Client) Search(query string, options ...IteratorOption) (*Iterator, error) {
 	u := URL("intelligence/search")
 	q := u.Query()
 	q.Add("query", query)
-	if options.DescriptorsOnly {
-		q.Add("descriptors_only", "true")
-	}
 	u.RawQuery = q.Encode()
-	return newIterator(cli, u, options.IteratorOptions)
+	return newIterator(cli, u, options...)
 }
 
 // Metadata describes the structure returned by /api/v3/metadata with metadata

@@ -13,7 +13,7 @@
 
 //
 // Package vt is a client library for the VirusTotal API v3. It makes the use
-// of the VirusTotal's REST API easier to Go developer.
+// of the VirusTotal's REST API easier for Go developers.
 //
 package vt
 

@@ -60,46 +60,83 @@ type collectionObject struct {
 	cursor cursor
 }
 
-// IteratorOptions are the options passed to Iterator.
-type IteratorOptions struct {
-	// Maximum number of items returned by the iterator.
-	Limit int
-	// Number of items retrieved on each call to the the API.
-	BatchSize int
-	// Continuation cursor for starting the iteration where we left.
-	Cursor string
-	// Filter string. The format for the filter depends on the collection being
-	// iterated.
-	Filter string
+// IteratorOption represents an option passed to an iterator.
+type IteratorOption func(*Iterator)
+
+// WithCursor specifies a cursor for the iterator. The iterator will start at
+// the point indicated by the cursor.
+func WithCursor(cursor string) IteratorOption {
+	return func(it *Iterator) {
+		it.cursor = cursor
+	}
+}
+
+// WithFilter specifies a filtering query that is sent to the backend. The
+// backend will return items that comply with the condition imposed by the
+// filter. The filter syntax varies depending on the collection being iterated.
+func WithFilter(filter string) IteratorOption {
+	return func(it *Iterator) {
+		it.filter = filter
+	}
+}
+
+// WithBatchSize specifies the number of items that are retrieved in a single
+// call to the backend.
+func WithBatchSize(n int) IteratorOption {
+	return func(it *Iterator) {
+		it.batchSize = n
+	}
+}
+
+// WithLimit specifies a maximum number of items that will be returned by the
+// iterator.
+func WithLimit(n int) IteratorOption {
+	return func(it *Iterator) {
+		it.limit = n
+	}
+}
+
+// WithDescriptorsOnly receives a boolean that indicate whether or not we want
+// the backend to respond with object descriptors instead of the full objects.
+func WithDescriptorsOnly(b bool) IteratorOption {
+	return func(it *Iterator) {
+		it.descriptorsOnly = b
+	}
 }
 
 // Iterator represents a iterator over a collection of VirusTotal objects.
 type Iterator struct {
-	client *Client
-	ch     chan interface{}
-	done   chan bool
-	next   *Object
-	err    error
-	closed bool
-	limit  int
-	count  int
-	cursor string
-	links  Links
-	meta   map[string]interface{}
+	client          *Client
+	ch              chan interface{}
+	done            chan bool
+	next            *Object
+	err             error
+	closed          bool
+	limit           int
+	count           int
+	batchSize       int
+	filter          string
+	cursor          string
+	descriptorsOnly bool
+	links           Links
+	meta            map[string]interface{}
 }
 
-func newIterator(cli *Client, u *url.URL, options IteratorOptions) (*Iterator, error) {
+func newIterator(cli *Client, u *url.URL, options ...IteratorOption) (*Iterator, error) {
 
 	skip := 0
 	it := &Iterator{
 		client: cli,
-		limit:  options.Limit,
 		ch:     make(chan interface{}, 50),
 		done:   make(chan bool)}
 
-	if options.Cursor != "" {
+	for _, opt := range options {
+		opt(it)
+	}
+
+	if it.cursor != "" {
 		c := cursor{}
-		err := c.decode(options.Cursor)
+		err := c.decode(it.cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -107,11 +144,14 @@ func newIterator(cli *Client, u *url.URL, options IteratorOptions) (*Iterator, e
 		skip = c.Offset
 	} else {
 		q := u.Query()
-		if options.BatchSize > 0 {
-			q.Add("limit", strconv.Itoa(options.BatchSize))
+		if it.batchSize > 0 {
+			q.Add("limit", strconv.Itoa(it.batchSize))
 		}
-		if options.Filter != "" {
-			q.Add("filter", options.Filter)
+		if it.filter != "" {
+			q.Add("filter", it.filter)
+		}
+		if it.descriptorsOnly {
+			q.Add("descriptors_only", "true")
 		}
 		u.RawQuery = q.Encode()
 		it.links.Next = u.String()
@@ -139,8 +179,8 @@ func newIterator(cli *Client, u *url.URL, options IteratorOptions) (*Iterator, e
 //    ...handle error
 //  }
 //
-func (cli *Client) Iterator(url *url.URL, options IteratorOptions) (*Iterator, error) {
-	return newIterator(cli, url, options)
+func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error) {
+	return newIterator(cli, url, options...)
 }
 
 // Next advances the iterator to the next object and returns true if there are
