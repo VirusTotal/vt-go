@@ -28,7 +28,7 @@ func main() {
     flag.Parse()
     client := vt.NewClient("<apikey>")
 
-    file, err := client.GetObject(vt.URL("file/%s", sha256));
+    file, err := client.GetObject(vt.URL("files/%s", sha256));
     if err != nil {
         log.Fatal(err)
     }
