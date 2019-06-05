@@ -197,7 +197,8 @@ func (cli *Client) Delete(url *url.URL, options ...RequestOption) (*Response, er
 // GetData sends a GET request to the specified API endpoint and unmarshals the
 // JSON-encoded data received in the API response. The unmarshalled data is put
 // into the specified target. The target must be of an appropriate type capable
-// of receiving the data returned by the the endpoint.
+// of receiving the data returned by the the endpoint. If the data returned by
+// the endpoint is an object you can use GetObject instead.
 func (cli *Client) GetData(url *url.URL, target interface{}, options ...RequestOption) (*Response, error) {
 	resp, err := cli.Get(url, options...)
 	if err != nil {
@@ -216,7 +217,7 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOp
 	return cli.Post(url, req, options...)
 }
 
-// CreateObject adds an Object to a collection. The specified URL must point to
+// PostObject adds an Object to a collection. The specified URL must point to
 // a collection, not an object, but not all collections accept this operation.
 // For more information about collection and objects in the VirusTotal API see:
 //
@@ -229,9 +230,9 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOp
 //	obj.Attributes["name"] = "test"
 //	obj.Attributes["rules"] = "rule test {condition: false}"
 //
-//	client.CreateObject(vt.URL("intelligence/hunting_rulesets"), obj)
+//	client.PostObject(vt.URL("intelligence/hunting_rulesets"), obj)
 //
-func (cli *Client) CreateObject(url *url.URL, obj *Object, options ...RequestOption) error {
+func (cli *Client) PostObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
 	req.Data = obj
 	resp, err := cli.Post(url, req, options...)
