@@ -46,8 +46,10 @@ type FileScanner struct {
 // Scan sends a file to VirusTotal for scanning. The file content is read from
 // the r io.Reader and sent to VirusTotal with the provided file name which can
 // be left blank. The function also sends a float32 through the progress channel
-// indicating the percentage of the file that has been already uploaded. An
-// analysis object is returned as soon as the file is uploaded.
+// indicating the percentage of the file that has been already uploaded. The
+// progress channel can be nil if the caller is not interested in receiving
+// upload progress updates. An analysis object is returned as soon as the file
+// is uploaded.
 func (s *FileScanner) Scan(r io.Reader, filename string, progress chan<- float32) (*Object, error) {
 
 	var uploadURL *url.URL
