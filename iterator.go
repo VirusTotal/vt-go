@@ -23,6 +23,12 @@ import (
 	"time"
 )
 
+const (
+	ok = iota
+	retry
+	stop
+)
+
 type cursor struct {
 	Link   string
 	Offset int
@@ -61,46 +67,51 @@ type collectionObject struct {
 }
 
 // IteratorOption represents an option passed to an iterator.
-type IteratorOption func(*Iterator)
+type IteratorOption func(*Iterator) error
 
-// WithCursor specifies a cursor for the iterator. The iterator will start at
-// the point indicated by the cursor.
-func WithCursor(cursor string) IteratorOption {
-	return func(it *Iterator) {
+// IteratorCursor specifies a cursor for the iterator. The iterator will start
+// at the point indicated by the cursor.
+func IteratorCursor(cursor string) IteratorOption {
+	return func(it *Iterator) error {
 		it.cursor = cursor
+		return nil
 	}
 }
 
-// WithFilter specifies a filtering query that is sent to the backend. The
+// IteratorFilter specifies a filtering query that is sent to the backend. The
 // backend will return items that comply with the condition imposed by the
 // filter. The filter syntax varies depending on the collection being iterated.
-func WithFilter(filter string) IteratorOption {
-	return func(it *Iterator) {
+func IteratorFilter(filter string) IteratorOption {
+	return func(it *Iterator) error {
 		it.filter = filter
+		return nil
 	}
 }
 
-// WithBatchSize specifies the number of items that are retrieved in a single
-// call to the backend.
-func WithBatchSize(n int) IteratorOption {
-	return func(it *Iterator) {
+// IteratorBatchSize specifies the number of items that are retrieved in a
+// single call to the backend.
+func IteratorBatchSize(n int) IteratorOption {
+	return func(it *Iterator) error {
 		it.batchSize = n
+		return nil
 	}
 }
 
-// WithLimit specifies a maximum number of items that will be returned by the
-// iterator.
-func WithLimit(n int) IteratorOption {
-	return func(it *Iterator) {
+// IteratorLimit specifies a maximum number of items that will be returned by
+// the iterator.
+func IteratorLimit(n int) IteratorOption {
+	return func(it *Iterator) error {
 		it.limit = n
+		return nil
 	}
 }
 
-// WithDescriptorsOnly receives a boolean that indicate whether or not we want
+// IteratorDescriptorsOnly receives a boolean that indicate whether or not we want
 // the backend to respond with object descriptors instead of the full objects.
-func WithDescriptorsOnly(b bool) IteratorOption {
-	return func(it *Iterator) {
+func IteratorDescriptorsOnly(b bool) IteratorOption {
+	return func(it *Iterator) error {
 		it.descriptorsOnly = b
+		return nil
 	}
 }
 
@@ -131,7 +142,9 @@ func newIterator(cli *Client, u *url.URL, options ...IteratorOption) (*Iterator,
 		done:   make(chan bool)}
 
 	for _, opt := range options {
-		opt(it)
+		if err := opt(it); err != nil {
+			return nil, err
+		}
 	}
 
 	if it.cursor != "" {
@@ -166,7 +179,7 @@ func newIterator(cli *Client, u *url.URL, options ...IteratorOption) (*Iterator,
 // used like this:
 //
 //  cli := vt.Client(<api key>)
-//  it, err := cli.Iterator(vt.URL(<collection path>), options)
+//  it, err := cli.Iterator(vt.URL(<collection path>))
 //  if err != nil {
 //	  ...handle error
 //  }
@@ -232,12 +245,6 @@ func (it *Iterator) Meta() map[string]interface{} {
 func (it *Iterator) Error() error {
 	return it.err
 }
-
-const (
-	ok = iota
-	retry
-	stop
-)
 
 func (it *Iterator) trySendToChannel(item interface{}) int {
 	select {
