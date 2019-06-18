@@ -117,7 +117,7 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 }
 
 // GetInt64 returns an attribute as an int64. It returns the attribute's
-// value and a boolean indicating that the attribute exists and is a number.
+// value or an error if the attribute doesn't exist or is not a number.
 func (obj *Object) GetInt64(name string) (int64, error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
@@ -136,7 +136,7 @@ func (obj *Object) MustGetInt64(name string) int64 {
 }
 
 // GetFloat64 returns an attribute as a float64. It returns the attribute's
-// value and a boolean indicating that the attribute exists and is a number.
+// value or an error if the attribute doesn't exist or is not a number.
 func (obj *Object) GetFloat64(name string) (float64, error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
@@ -155,7 +155,7 @@ func (obj *Object) MustGetFloat64(name string) float64 {
 }
 
 // GetString returns an attribute as a string. It returns the attribute's
-// value and a boolean indicating that the attribute exists and is a string.
+// valueor an error if the attribute doesn't exist or is not a string.
 func (obj *Object) GetString(name string) (s string, err error) {
 	if attrValue, attrExists := obj.Attributes[name]; attrExists {
 		s, isString := attrValue.(string)
@@ -177,7 +177,7 @@ func (obj *Object) MustGetString(name string) string {
 }
 
 // GetTime returns an attribute as a time. It returns the attribute's
-// value and a boolean indicating that the attribute exists and is a time.
+// value or an error if the attribute doesn't exist or is not a time.
 func (obj *Object) GetTime(name string) (t time.Time, err error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
@@ -196,9 +196,31 @@ func (obj *Object) MustGetTime(name string) time.Time {
 	return result
 }
 
+// GetBool returns an attribute as a boolean. It returns the attribute's
+// value or an error if the attribute doesn't exist or is not a boolean.
+func (obj *Object) GetBool(name string) (b bool, err error) {
+	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+		b, isBool := attrValue.(bool)
+		if !isBool {
+			err = fmt.Errorf("context attribute \"%s\" is not a bool", name)
+		}
+		return b, err
+	}
+	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
+}
+
+// MustGetBool is like GetTime, but it panic in case of error.
+func (obj *Object) MustGetBool(name string) bool {
+	result, err := obj.GetBool(name)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 // GetContextInt64 returns a context attribute as an int64. It returns the
-// attribute's value and a boolean indicating that the context attribute
-// exists and is a number.
+// attribute's value or an error if the attribute doesn't exist or is not a
+// number.
 func (obj *Object) GetContextInt64(name string) (int64, error) {
 	n, err := obj.getContextAttributeNumber(name)
 	if err == nil {
@@ -208,8 +230,8 @@ func (obj *Object) GetContextInt64(name string) (int64, error) {
 }
 
 // GetContextFloat64 returns a context attribute as an float64. It returns the
-// attribute's value and a boolean indicating that the context attribute exists
-// and is a number.
+// attribute's value or an error if the attribute doesn't exist or is not a
+// number.
 func (obj *Object) GetContextFloat64(name string) (float64, error) {
 	n, err := obj.getContextAttributeNumber(name)
 	if err == nil {
@@ -219,12 +241,29 @@ func (obj *Object) GetContextFloat64(name string) (float64, error) {
 }
 
 // GetContextString returns a context attribute as a string. It returns the
-// attribute's svalue and a boolean indicating that the context attribute
-// exists and is a string.
-func (obj *Object) GetContextString(name string) (string, bool) {
+// attribute's value or an error if the attribute doesn't exist or is not a
+// string.
+func (obj *Object) GetContextString(name string) (s string, err error) {
 	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
 		s, isString := attrValue.(string)
-		return s, isString
+		if !isString {
+			err = fmt.Errorf("context attribute \"%s\" is not a string", name)
+		}
+		return s, err
 	}
-	return "", false
+	return "", fmt.Errorf("context attribute \"%s\" does not exists", name)
+}
+
+// GetContextBool returns a context attribute as a bool. It returns the
+// attribute's value or an error if the attribute doesn't exist or is not a
+// bool.
+func (obj *Object) GetContextBool(name string) (b bool, err error) {
+	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
+		b, isBool := attrValue.(bool)
+		if !isBool {
+			err = fmt.Errorf("context attribute \"%s\" is not a bool", name)
+		}
+		return b, err
+	}
+	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
