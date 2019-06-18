@@ -116,9 +116,9 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 	return n, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
 
-// GetAttributeInt64 returns an attribute as an int64. It returns the attribute's
+// GetInt64 returns an attribute as an int64. It returns the attribute's
 // value and a boolean indicating that the attribute exists and is a number.
-func (obj *Object) GetAttributeInt64(name string) (int64, error) {
+func (obj *Object) GetInt64(name string) (int64, error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
 		return n.Int64()
@@ -126,9 +126,18 @@ func (obj *Object) GetAttributeInt64(name string) (int64, error) {
 	return 0, err
 }
 
-// GetAttributeFloat64 returns an attribute as a float64. It returns the attribute's
+// MustGetInt64 is like GetInt64, but it panic in case of error.
+func (obj *Object) MustGetInt64(name string) int64 {
+	result, err := obj.GetInt64(name)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// GetFloat64 returns an attribute as a float64. It returns the attribute's
 // value and a boolean indicating that the attribute exists and is a number.
-func (obj *Object) GetAttributeFloat64(name string) (float64, error) {
+func (obj *Object) GetFloat64(name string) (float64, error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
 		return n.Float64()
@@ -136,9 +145,18 @@ func (obj *Object) GetAttributeFloat64(name string) (float64, error) {
 	return 0, err
 }
 
-// GetAttributeString returns an attribute as a string. It returns the attribute's
+// MustGetFloat64 is like GetFloat64, but it panic in case of error.
+func (obj *Object) MustGetFloat64(name string) float64 {
+	result, err := obj.GetFloat64(name)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// GetString returns an attribute as a string. It returns the attribute's
 // value and a boolean indicating that the attribute exists and is a string.
-func (obj *Object) GetAttributeString(name string) (s string, err error) {
+func (obj *Object) GetString(name string) (s string, err error) {
 	if attrValue, attrExists := obj.Attributes[name]; attrExists {
 		s, isString := attrValue.(string)
 		if !isString {
@@ -149,9 +167,18 @@ func (obj *Object) GetAttributeString(name string) (s string, err error) {
 	return "", fmt.Errorf("attribute \"%s\" does not exists", name)
 }
 
-// GetAttributeTime returns an attribute as a time. It returns the attribute's
+// MustGetString is like GetString, but it panic in case of error.
+func (obj *Object) MustGetString(name string) string {
+	result, err := obj.GetString(name)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// GetTime returns an attribute as a time. It returns the attribute's
 // value and a boolean indicating that the attribute exists and is a time.
-func (obj *Object) GetAttributeTime(name string) (t time.Time, err error) {
+func (obj *Object) GetTime(name string) (t time.Time, err error) {
 	n, err := obj.getAttributeNumber(name)
 	if err == nil {
 		i, err := n.Int64()
@@ -160,10 +187,19 @@ func (obj *Object) GetAttributeTime(name string) (t time.Time, err error) {
 	return time.Unix(0, 0), err
 }
 
-// GetContextAttributeInt64 returns a context attribute as an int64. It returns
-// the attribute's value and a boolean indicating that the context attribute
+// MustGetTime is like GetTime, but it panic in case of error.
+func (obj *Object) MustGetTime(name string) time.Time {
+	result, err := obj.GetTime(name)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// GetContextInt64 returns a context attribute as an int64. It returns the
+// attribute's value and a boolean indicating that the context attribute
 // exists and is a number.
-func (obj *Object) GetContextAttributeInt64(name string) (int64, error) {
+func (obj *Object) GetContextInt64(name string) (int64, error) {
 	n, err := obj.getContextAttributeNumber(name)
 	if err == nil {
 		return n.Int64()
@@ -171,10 +207,10 @@ func (obj *Object) GetContextAttributeInt64(name string) (int64, error) {
 	return 0, err
 }
 
-// GetContextAttributeFloat64 returns a context attribute as an float64. It
-// returns the attribute's value and a boolean indicating that the context
-// attribute exists and is a number.
-func (obj *Object) GetContextAttributeFloat64(name string) (float64, error) {
+// GetContextFloat64 returns a context attribute as an float64. It returns the
+// attribute's value and a boolean indicating that the context attribute exists
+// and is a number.
+func (obj *Object) GetContextFloat64(name string) (float64, error) {
 	n, err := obj.getContextAttributeNumber(name)
 	if err == nil {
 		return n.Float64()
@@ -182,10 +218,10 @@ func (obj *Object) GetContextAttributeFloat64(name string) (float64, error) {
 	return 0, err
 }
 
-// GetContextAttributeString returns a context attribute as a string. It returns
-// the attribute's svalue and a boolean indicating that the context attribute
+// GetContextString returns a context attribute as a string. It returns the
+// attribute's svalue and a boolean indicating that the context attribute
 // exists and is a string.
-func (obj *Object) GetContextAttributeString(name string) (string, bool) {
+func (obj *Object) GetContextString(name string) (string, bool) {
 	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
 		s, isString := attrValue.(string)
 		return s, isString
