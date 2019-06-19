@@ -79,15 +79,23 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	obj.Relationships = o.Relationships
 
 	for _, v := range obj.Relationships {
-		// Try unmarshalling as an array first, if it fails this is a one-to-one
-		// relationship, so we should try unmarshalling a single object descriptor.
-		if err := json.Unmarshal(v.Data, &v.RelatedObjects); err != nil {
+		var o ObjectDescriptor
+		// Try unmarshalling as an ObjectDescriptor first, if it fails this is
+		// a one-to-many relationship, so we try unmarshalling as an array of
+		// ObjectDescriptor.
+		if err := json.Unmarshal(v.Data, &o); err == nil {
 			v.IsOneToOne = true
-			var o ObjectDescriptor
-			if err = json.Unmarshal(v.Data, &o); err != nil {
+			// If the value is null the ObjectDescriptor will have an empty
+			// ID and Type.
+			if o.ID == "" && o.Type == "" {
+				v.RelatedObjects = nil
+			} else {
+				v.RelatedObjects = append(v.RelatedObjects, o)
+			}
+		} else {
+			if err := json.Unmarshal(v.Data, &v.RelatedObjects); err != nil {
 				return err
 			}
-			v.RelatedObjects = append(v.RelatedObjects, o)
 		}
 	}
 
