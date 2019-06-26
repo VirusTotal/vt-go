@@ -195,7 +195,7 @@ func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 	sc := bufio.NewScanner(bzip2.NewReader(httpResp.Body))
 	// By default bufio.Scanner uses a buffer that is limited to a maximum size
 	// defined by bufio.MaxScanBufferSize (64KB). This is too small for
-	// accomodating the large JSONs stored in the feed files. So we create an
+	// accommodating the large JSONs stored in the feed files. So we create an
 	// initial 1MB buffer and let it grow up to 10MB.
 	buffer := make([]byte, 1*1024*1024)
 	sc.Buffer(buffer, 10*1024*1024)
