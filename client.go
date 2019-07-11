@@ -224,17 +224,19 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOp
 // https://developers.virustotal.com/v3.0/reference#objects
 // https://developers.virustotal.com/v3.0/reference#collections
 //
+// This function updates the object with data returned from the server, so
+// the object's attributes can differ from those it had before the call.
+//
 // Example:
-//	obj := vt.NewObject()
-//	obj.Type = "hunting_ruleset"
-//	obj.Attributes["name"] = "test"
-//	obj.Attributes["rules"] = "rule test {condition: false}"
+//	obj := vt.NewObject("hunting_ruleset")
+//	obj.SetString("name", "test")
+//	obj.SetString("rules", "rule test {condition: false}")
 //
 //	client.PostObject(vt.URL("intelligence/hunting_rulesets"), obj)
 //
 func (cli *Client) PostObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
-	req.Data = obj
+	req.Data = modifiedObject(*obj)
 	resp, err := cli.Post(url, req, options...)
 	if err != nil {
 		return err
@@ -257,7 +259,7 @@ func (cli *Client) GetObject(url *url.URL, options ...RequestOption) (*Object, e
 // PatchObject modifies an existing object.
 func (cli *Client) PatchObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
-	req.Data = obj
+	req.Data = modifiedObject(*obj)
 	resp, err := cli.Patch(url, req, options...)
 	if err != nil {
 		return err

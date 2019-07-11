@@ -20,20 +20,30 @@ import (
 	"time"
 )
 
-// Object represents a VirusTotal API object.
-type Object struct {
+// objectData is the structure that have the data returned by the API for an
+// object.
+type objectData struct {
 	ID                string                   `json:"id,omitempty"`
 	Type              string                   `json:"type,omitempty"`
 	Attributes        map[string]interface{}   `json:"attributes,omitempty"`
 	ContextAttributes map[string]interface{}   `json:"context_attributes,omitempty"`
 	Relationships     map[string]*Relationship `json:"relationships,omitempty"`
-	Links             Links                    `json:"links,omitempty"`
+	Links             *Links                   `json:"links,omitempty"`
+}
+
+// Object represents a VirusTotal API object.
+type Object struct {
+	// Contains the object's data as returned by the API.
+	data objectData
+	// Contains a list the attributes that have been modified via a call to
+	// any of the SetXX methods.
+	modifiedAttributes []string
 }
 
 // Links contains links related to an API object.
 type Links struct {
-	Self string `json:"self"`
-	Next string `json:"next"`
+	Self string `json:"self,omitempty"`
+	Next string `json:"next,omitempty"`
 }
 
 // Relationship contains information about a related API object.
@@ -48,30 +58,41 @@ type Relationship struct {
 }
 
 // NewObject creates a new object.
-func NewObject() *Object {
-	return &Object{Attributes: make(map[string]interface{})}
+func NewObject(objType string) *Object {
+	return &Object{data: objectData{
+		Type:       objType,
+		Attributes: make(map[string]interface{})}}
+}
+
+// ID returns the object's identifier.
+func (obj *Object) ID() string {
+	return obj.data.ID
+}
+
+// Type returns the object's type.
+func (obj *Object) Type() string {
+	return obj.data.Type
+}
+
+// MarshalJSON marshals a VirusTotal API object.
+func (obj *Object) MarshalJSON() ([]byte, error) {
+	return json.Marshal(obj.data)
 }
 
 // UnmarshalJSON unmarshals a VirusTotal API object from data.
 func (obj *Object) UnmarshalJSON(data []byte) error {
 
-	type object Object
-
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 
-	o := object{}
-	if err := decoder.Decode(&o); err != nil {
+	od := objectData{}
+	if err := decoder.Decode(&od); err != nil {
 		return err
 	}
 
-	obj.Type = o.Type
-	obj.ID = o.ID
-	obj.Attributes = o.Attributes
-	obj.ContextAttributes = o.ContextAttributes
-	obj.Relationships = o.Relationships
+	obj.data = od
 
-	for _, v := range obj.Relationships {
+	for _, v := range obj.data.Relationships {
 		var o Object
 		// Try unmarshalling as an Object first, if it fails this is a
 		// one-to-many relationship, so we try unmarshalling as an array.
@@ -79,7 +100,7 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 			v.IsOneToOne = true
 			// If the value is null the ObjectDescriptor will have an empty
 			// ID and Type.
-			if o.ID == "" && o.Type == "" {
+			if o.data.ID == "" && o.data.Type == "" {
 				v.RelatedObjects = nil
 			} else {
 				v.RelatedObjects = append(v.RelatedObjects, o)
@@ -95,7 +116,7 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 }
 
 func (obj *Object) getAttributeNumber(name string) (n json.Number, err error) {
-	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
 		n, isNumber := attrValue.(json.Number)
 		if !isNumber {
 			err = fmt.Errorf("attribute \"%s\" is not a number", name)
@@ -106,7 +127,7 @@ func (obj *Object) getAttributeNumber(name string) (n json.Number, err error) {
 }
 
 func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err error) {
-	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
 		n, isNumber := attrValue.(json.Number)
 		if !isNumber {
 			err = fmt.Errorf("context attribute \"%s\" is not a number", name)
@@ -157,7 +178,7 @@ func (obj *Object) MustGetFloat64(name string) float64 {
 // GetString returns an attribute as a string. It returns the attribute's
 // valueor an error if the attribute doesn't exist or is not a string.
 func (obj *Object) GetString(name string) (s string, err error) {
-	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
 		s, isString := attrValue.(string)
 		if !isString {
 			err = fmt.Errorf("attribute \"%s\" is not a string", name)
@@ -199,7 +220,7 @@ func (obj *Object) MustGetTime(name string) time.Time {
 // GetBool returns an attribute as a boolean. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a boolean.
 func (obj *Object) GetBool(name string) (b bool, err error) {
-	if attrValue, attrExists := obj.Attributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
 		b, isBool := attrValue.(bool)
 		if !isBool {
 			err = fmt.Errorf("attribute \"%s\" is not a bool", name)
@@ -244,7 +265,7 @@ func (obj *Object) GetContextFloat64(name string) (float64, error) {
 // attribute's value or an error if the attribute doesn't exist or is not a
 // string.
 func (obj *Object) GetContextString(name string) (s string, err error) {
-	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
 		s, isString := attrValue.(string)
 		if !isString {
 			err = fmt.Errorf("context attribute \"%s\" is not a string", name)
@@ -258,7 +279,7 @@ func (obj *Object) GetContextString(name string) (s string, err error) {
 // attribute's value or an error if the attribute doesn't exist or is not a
 // bool.
 func (obj *Object) GetContextBool(name string) (b bool, err error) {
-	if attrValue, attrExists := obj.ContextAttributes[name]; attrExists {
+	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
 		b, isBool := attrValue.(bool)
 		if !isBool {
 			err = fmt.Errorf("context attribute \"%s\" is not a bool", name)
@@ -266,4 +287,67 @@ func (obj *Object) GetContextBool(name string) (b bool, err error) {
 		return b, err
 	}
 	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
+}
+
+// SetInt64 sets the value of an integer attribute.
+func (obj *Object) SetInt64(name string, value int64) {
+	currentValue, err := obj.GetInt64(name)
+	if err != nil || currentValue != value {
+		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
+		obj.data.Attributes[name] = value
+	}
+}
+
+// SetFloat64 sets the value of an integer attribute.
+func (obj *Object) SetFloat64(name string, value float64) {
+	currentValue, err := obj.GetFloat64(name)
+	if err != nil || currentValue != value {
+		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
+		obj.data.Attributes[name] = value
+	}
+}
+
+// SetString sets the value of a string attribute.
+func (obj *Object) SetString(name, value string) {
+	currentValue, err := obj.GetString(name)
+	if err != nil || currentValue != value {
+		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
+		obj.data.Attributes[name] = value
+	}
+}
+
+// SetBool sets the value of a string attribute.
+func (obj *Object) SetBool(name string, value bool) {
+	currentValue, err := obj.GetBool(name)
+	if err != nil || currentValue != value {
+		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
+		obj.data.Attributes[name] = value
+	}
+}
+
+// SetTime sets the value of a time attribute.
+func (obj *Object) SetTime(name string, value time.Time) {
+	currentValue, err := obj.GetTime(name)
+	if err != nil || currentValue != value {
+		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
+		obj.data.Attributes[name] = value
+	}
+}
+
+// modifiedObject is a structure exactly like Object, but that implements the
+// MarshalJSON interface differently. When a modifiedObject is marshalled as
+// JSON only the attributes that has been modified are included. Context
+// attributes, relationships and links are not included neither.
+type modifiedObject Object
+
+func (obj modifiedObject) MarshalJSON() ([]byte, error) {
+	od := objectData{
+		ID:         obj.data.ID,
+		Type:       obj.data.Type,
+		Attributes: make(map[string]interface{}),
+	}
+	for _, attr := range obj.modifiedAttributes {
+		od.Attributes[attr] = obj.data.Attributes[attr]
+	}
+	return json.Marshal(&od)
 }

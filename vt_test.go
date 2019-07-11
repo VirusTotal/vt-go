@@ -24,37 +24,63 @@ func ExampleURL() {
 	// https://www.virustotal.com/api/v3/intelligence/retrohunt_jobs/1234567
 }
 
-func createServer(response interface{}) *httptest.Server {
-	requestHandler := func(w http.ResponseWriter, r *http.Request) {
-		js, err := json.Marshal(response)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		gw := gzip.NewWriter(w)
-		gw.Write(js)
-		gw.Close()
+type TestServer struct {
+	*httptest.Server
+	t              *testing.T
+	expectedMethod string
+	response       interface{}
+}
+
+func NewTestServer(t *testing.T) *TestServer {
+	ts := &TestServer{t: t}
+	ts.Server = httptest.NewServer(http.HandlerFunc(ts.handler))
+	return ts
+}
+
+func (ts *TestServer) SetExpectedMethod(m string) *TestServer {
+	ts.expectedMethod = m
+	return ts
+}
+
+func (ts *TestServer) SetResponse(r interface{}) *TestServer {
+	ts.response = r
+	return ts
+}
+
+func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
+	if ts.expectedMethod != "" && ts.expectedMethod != r.Method {
+		ts.t.Errorf("Unexpected method, expecting %s, got %s",
+			ts.expectedMethod, r.Method)
 	}
-	return httptest.NewServer(http.HandlerFunc(requestHandler))
+	js, err := json.Marshal(ts.response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	gw := gzip.NewWriter(w)
+	gw.Write(js)
+	gw.Close()
 }
 
 // This tests GET request with passing in a parameter.
 func TestGetObject(t *testing.T) {
 
-	ts := createServer(map[string]interface{}{
-		"data": map[string]interface{}{
-			"type": "object_type",
-			"id":   "object_id",
-			"attributes": map[string]interface{}{
-				"some_int":    1,
-				"some_string": "hello",
-				"some_date":   0,
-				"some_bool":   true,
-				"some_float":  0.1,
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_int":    1,
+					"some_string": "hello",
+					"some_date":   0,
+					"some_bool":   true,
+					"some_float":  0.1,
+				},
 			},
-		},
-	})
+		})
 
 	defer ts.Close()
 
@@ -63,8 +89,8 @@ func TestGetObject(t *testing.T) {
 	o, err := c.GetObject(vt.URL("/collection/object_id"))
 
 	assert.NoError(t, err)
-	assert.Equal(t, "object_id", o.ID)
-	assert.Equal(t, "object_type", o.Type)
+	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, "object_type", o.Type())
 
 	assert.Equal(t, int64(1), o.MustGetInt64("some_int"))
 	assert.Equal(t, 0.1, o.MustGetFloat64("some_float"))
@@ -92,4 +118,76 @@ func TestGetObject(t *testing.T) {
 
 	_, err = o.GetBool("non_existing")
 	assert.Error(t, err)
+}
+
+func TestPostObject(t *testing.T) {
+
+	ts := NewTestServer(t).
+		SetExpectedMethod("POST").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+				},
+			},
+		})
+
+	defer ts.Close()
+
+	vt.SetHost(ts.URL)
+	c := vt.NewClient("api_key")
+	o := vt.NewObject("object_type")
+	err := c.PostObject(vt.URL("/collection"), o)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, "object_type", o.Type())
+	assert.Equal(t, "hello", o.MustGetString("some_string"))
+}
+
+func TestPatchObject(t *testing.T) {
+
+	getServer := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+					"some_int":    1,
+				},
+			},
+		})
+	defer getServer.Close()
+
+	patchServer := NewTestServer(t).
+		SetExpectedMethod("PATCH").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+				},
+			},
+		})
+
+	defer patchServer.Close()
+
+	c := vt.NewClient("api_key")
+
+	vt.SetHost(getServer.URL)
+	o, err := c.GetObject(vt.URL("/collection/object_id"))
+
+	vt.SetHost(patchServer.URL)
+	o.SetString("some_string", "world")
+	err = c.PatchObject(vt.URL("/collection/object_id"), o)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, "object_type", o.Type())
+	assert.Equal(t, "hello", o.MustGetString("some_string"))
 }
