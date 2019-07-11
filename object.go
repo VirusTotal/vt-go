@@ -298,7 +298,7 @@ func (obj *Object) GetContextBool(name string) (b bool, err error) {
 }
 
 // Set the value for an attribute.
-func (obj *Object) set(attr string, value interface{}) error {
+func (obj *Object) Set(attr string, value interface{}) error {
 	obj.modifiedAttributes = append(obj.modifiedAttributes, attr)
 	obj.data.Attributes[attr] = value
 	return nil
@@ -306,27 +306,27 @@ func (obj *Object) set(attr string, value interface{}) error {
 
 // SetInt64 sets the value of an integer attribute.
 func (obj *Object) SetInt64(name string, value int64) error {
-	return obj.set(name, value)
+	return obj.Set(name, value)
 }
 
 // SetFloat64 sets the value of an integer attribute.
 func (obj *Object) SetFloat64(name string, value float64) error {
-	return obj.set(name, value)
+	return obj.Set(name, value)
 }
 
 // SetString sets the value of a string attribute.
 func (obj *Object) SetString(name, value string) error {
-	return obj.set(name, value)
+	return obj.Set(name, value)
 }
 
 // SetBool sets the value of a string attribute.
 func (obj *Object) SetBool(name string, value bool) error {
-	return obj.set(name, value)
+	return obj.Set(name, value)
 }
 
 // SetTime sets the value of a time attribute.
 func (obj *Object) SetTime(name string, value time.Time) error {
-	return obj.set(name, value.Unix())
+	return obj.Set(name, value.Unix())
 }
 
 // modifiedObject is a structure exactly like Object, but that implements the
