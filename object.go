@@ -82,6 +82,28 @@ func (obj *Object) Type() string {
 	return obj.data.Type
 }
 
+// Attributes returns a list with the names of the object's attributes.
+func (obj *Object) Attributes() []string {
+	result := make([]string, len(obj.data.Attributes))
+	i := 0
+	for attr := range obj.data.Attributes {
+		result[i] = attr
+		i++
+	}
+	return result
+}
+
+// Relationships returns a list with the names of the object's relationships.
+func (obj *Object) Relationships() []string {
+	result := make([]string, len(obj.data.Relationships))
+	i := 0
+	for rel := range obj.data.Relationships {
+		result[i] = rel
+		i++
+	}
+	return result
+}
+
 // MarshalJSON marshals a VirusTotal API object.
 func (obj *Object) MarshalJSON() ([]byte, error) {
 	return json.Marshal(obj.data)
@@ -123,15 +145,16 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (obj *Object) getAttributeNumber(name string) (n json.Number, err error) {
-	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
-		n, isNumber := attrValue.(json.Number)
-		if !isNumber {
-			err = fmt.Errorf("attribute \"%s\" is not a number", name)
-		}
-		return n, err
+func (obj *Object) getAttributeNumber(attr string) (json.Number, error) {
+	value, err := obj.Get(attr)
+	if err != nil {
+		return "", err
 	}
-	return n, fmt.Errorf("attribute \"%s\" does not exists", name)
+	n, isNumber := value.(json.Number)
+	if !isNumber {
+		err = fmt.Errorf("context attribute \"%s\" is not a number", attr)
+	}
+	return n, err
 }
 
 func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err error) {
@@ -145,10 +168,18 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 	return n, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
 
+// Get an attribute by name.
+func (obj *Object) Get(attr string) (interface{}, error) {
+	if value, exists := obj.data.Attributes[attr]; exists {
+		return value, nil
+	}
+	return nil, fmt.Errorf("attribute \"%s\" does not exists", attr)
+}
+
 // GetInt64 returns an attribute as an int64. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a number.
-func (obj *Object) GetInt64(name string) (int64, error) {
-	n, err := obj.getAttributeNumber(name)
+func (obj *Object) GetInt64(attr string) (int64, error) {
+	n, err := obj.getAttributeNumber(attr)
 	if err == nil {
 		return n.Int64()
 	}
@@ -156,8 +187,8 @@ func (obj *Object) GetInt64(name string) (int64, error) {
 }
 
 // MustGetInt64 is like GetInt64, but it panic in case of error.
-func (obj *Object) MustGetInt64(name string) int64 {
-	result, err := obj.GetInt64(name)
+func (obj *Object) MustGetInt64(attr string) int64 {
+	result, err := obj.GetInt64(attr)
 	if err != nil {
 		panic(err)
 	}
@@ -166,8 +197,8 @@ func (obj *Object) MustGetInt64(name string) int64 {
 
 // GetFloat64 returns an attribute as a float64. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a number.
-func (obj *Object) GetFloat64(name string) (float64, error) {
-	n, err := obj.getAttributeNumber(name)
+func (obj *Object) GetFloat64(attr string) (float64, error) {
+	n, err := obj.getAttributeNumber(attr)
 	if err == nil {
 		return n.Float64()
 	}
@@ -175,8 +206,8 @@ func (obj *Object) GetFloat64(name string) (float64, error) {
 }
 
 // MustGetFloat64 is like GetFloat64, but it panic in case of error.
-func (obj *Object) MustGetFloat64(name string) float64 {
-	result, err := obj.GetFloat64(name)
+func (obj *Object) MustGetFloat64(attr string) float64 {
+	result, err := obj.GetFloat64(attr)
 	if err != nil {
 		panic(err)
 	}
@@ -185,20 +216,21 @@ func (obj *Object) MustGetFloat64(name string) float64 {
 
 // GetString returns an attribute as a string. It returns the attribute's
 // valueor an error if the attribute doesn't exist or is not a string.
-func (obj *Object) GetString(name string) (s string, err error) {
-	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
-		s, isString := attrValue.(string)
-		if !isString {
-			err = fmt.Errorf("attribute \"%s\" is not a string", name)
-		}
+func (obj *Object) GetString(attr string) (s string, err error) {
+	value, err := obj.Get(attr)
+	if err != nil {
 		return s, err
 	}
-	return "", fmt.Errorf("attribute \"%s\" does not exists", name)
+	s, isString := value.(string)
+	if !isString {
+		err = fmt.Errorf("attribute \"%s\" is not a string", attr)
+	}
+	return s, err
 }
 
 // MustGetString is like GetString, but it panic in case of error.
-func (obj *Object) MustGetString(name string) string {
-	result, err := obj.GetString(name)
+func (obj *Object) MustGetString(attr string) string {
+	result, err := obj.GetString(attr)
 	if err != nil {
 		panic(err)
 	}
@@ -207,8 +239,8 @@ func (obj *Object) MustGetString(name string) string {
 
 // GetTime returns an attribute as a time. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a time.
-func (obj *Object) GetTime(name string) (t time.Time, err error) {
-	n, err := obj.getAttributeNumber(name)
+func (obj *Object) GetTime(attr string) (t time.Time, err error) {
+	n, err := obj.getAttributeNumber(attr)
 	if err == nil {
 		i, err := n.Int64()
 		return time.Unix(i, 0), err
@@ -217,8 +249,8 @@ func (obj *Object) GetTime(name string) (t time.Time, err error) {
 }
 
 // MustGetTime is like GetTime, but it panic in case of error.
-func (obj *Object) MustGetTime(name string) time.Time {
-	result, err := obj.GetTime(name)
+func (obj *Object) MustGetTime(attr string) time.Time {
+	result, err := obj.GetTime(attr)
 	if err != nil {
 		panic(err)
 	}
@@ -227,20 +259,21 @@ func (obj *Object) MustGetTime(name string) time.Time {
 
 // GetBool returns an attribute as a boolean. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a boolean.
-func (obj *Object) GetBool(name string) (b bool, err error) {
-	if attrValue, attrExists := obj.data.Attributes[name]; attrExists {
-		b, isBool := attrValue.(bool)
-		if !isBool {
-			err = fmt.Errorf("attribute \"%s\" is not a bool", name)
-		}
+func (obj *Object) GetBool(attr string) (b bool, err error) {
+	value, err := obj.Get(attr)
+	if err != nil {
 		return b, err
 	}
-	return false, fmt.Errorf("attribute \"%s\" does not exists", name)
+	b, isBool := value.(bool)
+	if !isBool {
+		err = fmt.Errorf("attribute \"%s\" is not a bool", attr)
+	}
+	return b, err
 }
 
 // MustGetBool is like GetTime, but it panic in case of error.
-func (obj *Object) MustGetBool(name string) bool {
-	result, err := obj.GetBool(name)
+func (obj *Object) MustGetBool(attr string) bool {
+	result, err := obj.GetBool(attr)
 	if err != nil {
 		panic(err)
 	}
@@ -250,8 +283,8 @@ func (obj *Object) MustGetBool(name string) bool {
 // GetContextInt64 returns a context attribute as an int64. It returns the
 // attribute's value or an error if the attribute doesn't exist or is not a
 // number.
-func (obj *Object) GetContextInt64(name string) (int64, error) {
-	n, err := obj.getContextAttributeNumber(name)
+func (obj *Object) GetContextInt64(attr string) (int64, error) {
+	n, err := obj.getContextAttributeNumber(attr)
 	if err == nil {
 		return n.Int64()
 	}
@@ -261,8 +294,8 @@ func (obj *Object) GetContextInt64(name string) (int64, error) {
 // GetContextFloat64 returns a context attribute as an float64. It returns the
 // attribute's value or an error if the attribute doesn't exist or is not a
 // number.
-func (obj *Object) GetContextFloat64(name string) (float64, error) {
-	n, err := obj.getContextAttributeNumber(name)
+func (obj *Object) GetContextFloat64(attr string) (float64, error) {
+	n, err := obj.getContextAttributeNumber(attr)
 	if err == nil {
 		return n.Float64()
 	}
@@ -272,29 +305,29 @@ func (obj *Object) GetContextFloat64(name string) (float64, error) {
 // GetContextString returns a context attribute as a string. It returns the
 // attribute's value or an error if the attribute doesn't exist or is not a
 // string.
-func (obj *Object) GetContextString(name string) (s string, err error) {
-	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
+func (obj *Object) GetContextString(attr string) (s string, err error) {
+	if attrValue, attrExists := obj.data.ContextAttributes[attr]; attrExists {
 		s, isString := attrValue.(string)
 		if !isString {
-			err = fmt.Errorf("context attribute \"%s\" is not a string", name)
+			err = fmt.Errorf("context attribute \"%s\" is not a string", attr)
 		}
 		return s, err
 	}
-	return "", fmt.Errorf("context attribute \"%s\" does not exists", name)
+	return "", fmt.Errorf("context attribute \"%s\" does not exists", attr)
 }
 
 // GetContextBool returns a context attribute as a bool. It returns the
 // attribute's value or an error if the attribute doesn't exist or is not a
 // bool.
-func (obj *Object) GetContextBool(name string) (b bool, err error) {
-	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
+func (obj *Object) GetContextBool(attr string) (b bool, err error) {
+	if attrValue, attrExists := obj.data.ContextAttributes[attr]; attrExists {
 		b, isBool := attrValue.(bool)
 		if !isBool {
-			err = fmt.Errorf("context attribute \"%s\" is not a bool", name)
+			err = fmt.Errorf("context attribute \"%s\" is not a bool", attr)
 		}
 		return b, err
 	}
-	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
+	return false, fmt.Errorf("context attribute \"%s\" does not exists", attr)
 }
 
 // Set the value for an attribute.
@@ -305,28 +338,36 @@ func (obj *Object) Set(attr string, value interface{}) error {
 }
 
 // SetInt64 sets the value of an integer attribute.
-func (obj *Object) SetInt64(name string, value int64) error {
-	return obj.Set(name, value)
+func (obj *Object) SetInt64(attr string, value int64) error {
+	return obj.Set(attr, value)
 }
 
 // SetFloat64 sets the value of an integer attribute.
-func (obj *Object) SetFloat64(name string, value float64) error {
-	return obj.Set(name, value)
+func (obj *Object) SetFloat64(attr string, value float64) error {
+	return obj.Set(attr, value)
 }
 
 // SetString sets the value of a string attribute.
-func (obj *Object) SetString(name, value string) error {
-	return obj.Set(name, value)
+func (obj *Object) SetString(attr, value string) error {
+	return obj.Set(attr, value)
 }
 
 // SetBool sets the value of a string attribute.
-func (obj *Object) SetBool(name string, value bool) error {
-	return obj.Set(name, value)
+func (obj *Object) SetBool(attr string, value bool) error {
+	return obj.Set(attr, value)
 }
 
 // SetTime sets the value of a time attribute.
-func (obj *Object) SetTime(name string, value time.Time) error {
-	return obj.Set(name, value.Unix())
+func (obj *Object) SetTime(attr string, value time.Time) error {
+	return obj.Set(attr, value.Unix())
+}
+
+// GetRelationship returns a relationship by name.
+func (obj *Object) GetRelationship(name string) (*Relationship, error) {
+	if r, exists := obj.data.Relationships[name]; exists {
+		return r, nil
+	}
+	return nil, fmt.Errorf("relationship \"%s\" doesn't exist", name)
 }
 
 // modifiedObject is a structure exactly like Object, but that implements the

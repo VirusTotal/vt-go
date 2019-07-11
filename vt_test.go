@@ -92,6 +92,14 @@ func TestGetObject(t *testing.T) {
 	assert.Equal(t, "object_id", o.ID())
 	assert.Equal(t, "object_type", o.Type())
 
+	s, err := o.Get("some_string")
+	assert.NoError(t, err)
+	assert.Equal(t, "hello", s)
+
+	s, err = o.GetString("some_string")
+	assert.NoError(t, err)
+	assert.Equal(t, "hello", s)
+
 	assert.Equal(t, int64(1), o.MustGetInt64("some_int"))
 	assert.Equal(t, 0.1, o.MustGetFloat64("some_float"))
 	assert.Equal(t, "hello", o.MustGetString("some_string"))
