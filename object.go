@@ -64,6 +64,14 @@ func NewObject(objType string) *Object {
 		Attributes: make(map[string]interface{})}}
 }
 
+// NewObjectWithID creates a new object with the specified ID.
+func NewObjectWithID(objType, id string) *Object {
+	return &Object{data: objectData{
+		Type:       objType,
+		ID:         id,
+		Attributes: make(map[string]interface{})}}
+}
+
 // ID returns the object's identifier.
 func (obj *Object) ID() string {
 	return obj.data.ID
@@ -289,49 +297,36 @@ func (obj *Object) GetContextBool(name string) (b bool, err error) {
 	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
 
+// Set the value for an attribute.
+func (obj *Object) set(attr string, value interface{}) error {
+	obj.modifiedAttributes = append(obj.modifiedAttributes, attr)
+	obj.data.Attributes[attr] = value
+	return nil
+}
+
 // SetInt64 sets the value of an integer attribute.
-func (obj *Object) SetInt64(name string, value int64) {
-	currentValue, err := obj.GetInt64(name)
-	if err != nil || currentValue != value {
-		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
-		obj.data.Attributes[name] = value
-	}
+func (obj *Object) SetInt64(name string, value int64) error {
+	return obj.set(name, value)
 }
 
 // SetFloat64 sets the value of an integer attribute.
-func (obj *Object) SetFloat64(name string, value float64) {
-	currentValue, err := obj.GetFloat64(name)
-	if err != nil || currentValue != value {
-		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
-		obj.data.Attributes[name] = value
-	}
+func (obj *Object) SetFloat64(name string, value float64) error {
+	return obj.set(name, value)
 }
 
 // SetString sets the value of a string attribute.
-func (obj *Object) SetString(name, value string) {
-	currentValue, err := obj.GetString(name)
-	if err != nil || currentValue != value {
-		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
-		obj.data.Attributes[name] = value
-	}
+func (obj *Object) SetString(name, value string) error {
+	return obj.set(name, value)
 }
 
 // SetBool sets the value of a string attribute.
-func (obj *Object) SetBool(name string, value bool) {
-	currentValue, err := obj.GetBool(name)
-	if err != nil || currentValue != value {
-		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
-		obj.data.Attributes[name] = value
-	}
+func (obj *Object) SetBool(name string, value bool) error {
+	return obj.set(name, value)
 }
 
 // SetTime sets the value of a time attribute.
-func (obj *Object) SetTime(name string, value time.Time) {
-	currentValue, err := obj.GetTime(name)
-	if err != nil || currentValue != value {
-		obj.modifiedAttributes = append(obj.modifiedAttributes, name)
-		obj.data.Attributes[name] = value
-	}
+func (obj *Object) SetTime(name string, value time.Time) error {
+	return obj.set(name, value.Unix())
 }
 
 // modifiedObject is a structure exactly like Object, but that implements the
