@@ -20,13 +20,6 @@ import (
 	"time"
 )
 
-// ObjectDescriptor is a pair (ID, type) describing a VirusTotal API object.
-type ObjectDescriptor struct {
-	ID                string                 `json:"id,omitempty"`
-	Type              string                 `json:"type,omitempty"`
-	ContextAttributes map[string]interface{} `json:"context_attributes,omitempty"`
-}
-
 // Object represents a VirusTotal API object.
 type Object struct {
 	ID                string                   `json:"id,omitempty"`
@@ -51,7 +44,7 @@ type Relationship struct {
 	// IsOneToOne is true if this is a one-to-one relationshio and False if
 	// otherwise. If true RelatedObjects contains one object at most.
 	IsOneToOne     bool
-	RelatedObjects []ObjectDescriptor
+	RelatedObjects []Object
 }
 
 // NewObject creates a new object.
@@ -79,10 +72,9 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	obj.Relationships = o.Relationships
 
 	for _, v := range obj.Relationships {
-		var o ObjectDescriptor
-		// Try unmarshalling as an ObjectDescriptor first, if it fails this is
-		// a one-to-many relationship, so we try unmarshalling as an array of
-		// ObjectDescriptor.
+		var o Object
+		// Try unmarshalling as an Object first, if it fails this is a
+		// one-to-many relationship, so we try unmarshalling as an array.
 		if err := json.Unmarshal(v.Data, &o); err == nil {
 			v.IsOneToOne = true
 			// If the value is null the ObjectDescriptor will have an empty
@@ -210,11 +202,11 @@ func (obj *Object) GetBool(name string) (b bool, err error) {
 	if attrValue, attrExists := obj.Attributes[name]; attrExists {
 		b, isBool := attrValue.(bool)
 		if !isBool {
-			err = fmt.Errorf("context attribute \"%s\" is not a bool", name)
+			err = fmt.Errorf("attribute \"%s\" is not a bool", name)
 		}
 		return b, err
 	}
-	return false, fmt.Errorf("context attribute \"%s\" does not exists", name)
+	return false, fmt.Errorf("attribute \"%s\" does not exists", name)
 }
 
 // MustGetBool is like GetTime, but it panic in case of error.

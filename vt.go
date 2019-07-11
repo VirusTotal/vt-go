@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 const (
@@ -74,5 +75,13 @@ func URL(pathFmt string, a ...interface{}) *url.URL {
 // VirusTotal API. The default host is "www.virustotal.com" you rarely need to
 // change it.
 func SetHost(host string) {
-	baseURL.Host = host
+	if strings.HasPrefix(host, "https://") {
+		baseURL.Scheme = "https"
+		baseURL.Host = strings.TrimPrefix(host, "https://")
+	} else if strings.HasPrefix(host, "http://") {
+		baseURL.Scheme = "http"
+		baseURL.Host = strings.TrimPrefix(host, "http://")
+	} else {
+		baseURL.Host = host
+	}
 }
