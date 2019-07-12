@@ -199,3 +199,70 @@ func TestPatchObject(t *testing.T) {
 	assert.Equal(t, "object_type", o.Type())
 	assert.Equal(t, "hello", o.MustGetString("some_string"))
 }
+
+func TestIterator(t *testing.T) {
+
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetResponse(map[string]interface{}{
+			"data": []map[string]interface{}{
+				{
+					"type": "object_type",
+					"id":   "object_id_1",
+					"attributes": map[string]interface{}{
+						"some_string": "hello",
+					},
+				},
+				{
+					"type": "object_type",
+					"id":   "object_id_2",
+					"attributes": map[string]interface{}{
+						"some_string": "world",
+					},
+				},
+			}})
+
+	defer ts.Close()
+
+	vt.SetHost(ts.URL)
+	c := vt.NewClient("api_key")
+	it, err := c.Iterator(vt.URL("/collection"))
+
+	assert.NoError(t, err)
+	assert.NoError(t, it.Error())
+
+	assert.True(t, it.Next())
+	assert.Equal(t, "object_id_1", it.Get().ID())
+	assert.True(t, it.Next())
+	assert.Equal(t, "object_id_2", it.Get().ID())
+	assert.False(t, it.Next())
+}
+
+func TestIteratorSingleObject(t *testing.T) {
+
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+				},
+			},
+		})
+
+	defer ts.Close()
+
+	vt.SetHost(ts.URL)
+	c := vt.NewClient("api_key")
+	it, err := c.Iterator(vt.URL("/collection"))
+
+	assert.NoError(t, err)
+	assert.NoError(t, it.Error())
+
+	assert.True(t, it.Next())
+	assert.Equal(t, "object_id", it.Get().ID())
+	assert.False(t, it.Next())
+	assert.Equal(t, "", it.Cursor())
+}

@@ -175,7 +175,9 @@ func newIterator(cli *Client, u *url.URL, options ...IteratorOption) (*Iterator,
 	return it, nil
 }
 
-// Iterator returns an iterator for a collection. Iterators are usually
+// Iterator returns an iterator for a collection. If the endpoint passed to the
+// iterator returns a single object instead of a collection it behaves as if
+// iterating over a collection with a single object. Iterators are usually
 // used like this:
 //
 //  cli := vt.Client(<api key>)
@@ -272,14 +274,23 @@ func (it *Iterator) sendToChannel(item interface{}) int {
 	return ok
 }
 
-func (it *Iterator) getMoreObjects() ([]*Object, error) {
-	var objs []*Object
+func (it *Iterator) getMoreObjects() (objs []*Object, err error) {
 	nextURL, err := url.Parse(it.links.Next)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := it.client.GetData(nextURL, &objs)
-	if err != nil {
+	var resp *Response
+	var data json.RawMessage
+	if resp, err = it.client.GetData(nextURL, &data); err != nil {
+		return nil, err
+	}
+	// Try to unmarshall the data into an object, if it succeeds is because the
+	// user passed and endpoint that returns a single object to the iterator.
+	// This case is handled as a collection that returns a single object.
+	obj := &Object{}
+	if err = json.Unmarshal(data, obj); err == nil {
+		objs = append(objs, obj)
+	} else if err = json.Unmarshal(data, &objs); err != nil {
 		return nil, err
 	}
 	it.links = resp.Links

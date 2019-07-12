@@ -23,12 +23,12 @@ import (
 // objectData is the structure that have the data returned by the API for an
 // object.
 type objectData struct {
-	ID                string                   `json:"id,omitempty"`
-	Type              string                   `json:"type,omitempty"`
-	Attributes        map[string]interface{}   `json:"attributes,omitempty"`
-	ContextAttributes map[string]interface{}   `json:"context_attributes,omitempty"`
-	Relationships     map[string]*Relationship `json:"relationships,omitempty"`
-	Links             *Links                   `json:"links,omitempty"`
+	ID                string                       `json:"id,omitempty"`
+	Type              string                       `json:"type,omitempty"`
+	Attributes        map[string]interface{}       `json:"attributes,omitempty"`
+	ContextAttributes map[string]interface{}       `json:"context_attributes,omitempty"`
+	Relationships     map[string]*relationshipData `json:"relationships,omitempty"`
+	Links             *Links                       `json:"links,omitempty"`
 }
 
 // Object represents a VirusTotal API object.
@@ -44,17 +44,6 @@ type Object struct {
 type Links struct {
 	Self string `json:"self,omitempty"`
 	Next string `json:"next,omitempty"`
-}
-
-// Relationship contains information about a related API object.
-type Relationship struct {
-	Data  json.RawMessage `json:"data,omitempty"`
-	Links Links           `json:"links,omitempty"`
-
-	// IsOneToOne is true if this is a one-to-one relationshio and False if
-	// otherwise. If true RelatedObjects contains one object at most.
-	IsOneToOne     bool
-	RelatedObjects []Object
 }
 
 // NewObject creates a new object.
@@ -128,15 +117,14 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 		// one-to-many relationship, so we try unmarshalling as an array.
 		if err := json.Unmarshal(v.Data, &o); err == nil {
 			v.IsOneToOne = true
-			// If the value is null the ObjectDescriptor will have an empty
-			// ID and Type.
+			// If the value is null the Object will have an empty ID and Type.
 			if o.data.ID == "" && o.data.Type == "" {
-				v.RelatedObjects = nil
+				v.Objects = nil
 			} else {
-				v.RelatedObjects = append(v.RelatedObjects, o)
+				v.Objects = append(v.Objects, o)
 			}
 		} else {
-			if err := json.Unmarshal(v.Data, &v.RelatedObjects); err != nil {
+			if err := json.Unmarshal(v.Data, &v.Objects); err != nil {
 				return err
 			}
 		}
@@ -365,7 +353,7 @@ func (obj *Object) SetTime(attr string, value time.Time) error {
 // GetRelationship returns a relationship by name.
 func (obj *Object) GetRelationship(name string) (*Relationship, error) {
 	if r, exists := obj.data.Relationships[name]; exists {
-		return r, nil
+		return &Relationship{data: *r}, nil
 	}
 	return nil, fmt.Errorf("relationship \"%s\" doesn't exist", name)
 }
