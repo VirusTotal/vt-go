@@ -350,7 +350,17 @@ func (obj *Object) SetTime(attr string, value time.Time) error {
 	return obj.Set(attr, value.Unix())
 }
 
-// GetRelationship returns a relationship by name.
+// GetRelationship returns a relationship by name. Object's will have
+// relationships were explicitly asked for during a call to GetObject by
+// including the "relationships" paramether in the URL.
+//
+// Example:
+//   f, _ := client.GetObject(vt.URL("files/%s?relationships=contacted_ips"))
+//   // OK as "contacted_ip" was requested.
+//   r, _ := f.GetRelationship("contacted_ips")
+//   // Not OK, "contacted_urls" won't be present
+//   r, _ := f.GetRelationship("contacted_urls")
+//
 func (obj *Object) GetRelationship(name string) (*Relationship, error) {
 	if r, exists := obj.data.Relationships[name]; exists {
 		return &Relationship{data: *r}, nil

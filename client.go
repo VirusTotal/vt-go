@@ -279,7 +279,33 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 	return io.Copy(w, resp.Body)
 }
 
+// Iterator returns an iterator for a collection. If the endpoint passed to the
+// iterator returns a single object instead of a collection, it behaves as if
+// iterating over a collection with a single object. Iterators are usually
+// used like this:
+//
+//  cli := vt.Client(<api key>)
+//  it, err := cli.Iterator(vt.URL(<collection path>))
+//  if err != nil {
+//	  ...handle error
+//  }
+//  defer it.Close()
+//  for it.Next() {
+//    obj := it.Get()
+//    ...do something with obj
+//  }
+//  if err := it.Error(); err != nil {
+//    ...handle error
+//  }
+//
+func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error) {
+	return newIterator(cli, url, options...)
+}
+
 // Search for files using VirusTotal Intelligence query language.
+// Example:
+//   it, err := client.Search("p:10+ size:30MB+")
+//
 func (cli *Client) Search(query string, options ...IteratorOption) (*Iterator, error) {
 	u := URL("intelligence/search")
 	q := u.Query()

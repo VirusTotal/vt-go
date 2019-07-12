@@ -175,29 +175,6 @@ func newIterator(cli *Client, u *url.URL, options ...IteratorOption) (*Iterator,
 	return it, nil
 }
 
-// Iterator returns an iterator for a collection. If the endpoint passed to the
-// iterator returns a single object instead of a collection it behaves as if
-// iterating over a collection with a single object. Iterators are usually
-// used like this:
-//
-//  cli := vt.Client(<api key>)
-//  it, err := cli.Iterator(vt.URL(<collection path>))
-//  if err != nil {
-//	  ...handle error
-//  }
-//  defer it.Close()
-//  for it.Next() {
-//    obj := it.Get()
-//    ...do something with obj
-//  }
-//  if err := it.Error(); err != nil {
-//    ...handle error
-//  }
-//
-func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error) {
-	return newIterator(cli, url, options...)
-}
-
 // Next advances the iterator to the next object and returns true if there are
 // more objects or false if the end of the collection has been reached.
 func (it *Iterator) Next() bool {
