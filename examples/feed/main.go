@@ -35,16 +35,18 @@ var cursor = flag.String("cursor", "", "continuation cursor")
 func main() {
 	flag.Parse()
 
-	vt.SetHost("devel-dot-core-dot-virustotalcloud.appspot.com")
+	if *apikey == "" {
+		fmt.Println("An API key is required, use --apikey")
+		return
+	}
 
 	client := vt.NewClient(*apikey)
-
 	feed, err := client.NewFeed(vt.FileFeed,
 		vt.FeedBufferSize(*bufferSize),
 		vt.FeedCursor(*cursor))
 
 	if err != nil {
-		fmt.Printf("error: %+v", err)
+		fmt.Printf("Error: %+v", err)
 		return
 	}
 
@@ -59,8 +61,12 @@ func main() {
 	// Get files from the feed until the program is stopped. You can use
 	// Ctrl+C for stopping it.
 	for obj := range feed.C {
-		fmt.Println(obj.ID)
+		fmt.Println(obj.ID())
 	}
 
-	fmt.Printf("\nFor continuing where you left use option: --cursor %s\n", feed.Cursor())
+	if err := feed.Error(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		fmt.Printf("\nFor continuing where you left use option: --cursor %s\n", feed.Cursor())
+	}
 }

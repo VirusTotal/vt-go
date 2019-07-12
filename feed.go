@@ -172,7 +172,6 @@ var errNoAvailableYet = errors.New("No available yet")
 func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 
 	u := URL("feeds/%s/%s", f.feedType, packageTime)
-	fmt.Println(u)
 
 	httpResp, err := f.client.sendRequest("GET", u, nil, nil)
 	if err != nil {
