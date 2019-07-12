@@ -21,7 +21,7 @@ type relationshipData struct {
 	// IsOneToOne is true if this is a one-to-one relationshio and False if
 	// otherwise. If true Objects contains one object at most.
 	IsOneToOne bool
-	Objects    []Object
+	Objects    []*Object
 }
 
 // Relationship contains information about a relationship between objects.
@@ -35,6 +35,6 @@ func (r *Relationship) IsOneToOne() bool {
 }
 
 // Objects return the objects in this relationship.
-func (r *Relationship) Objects() []Object {
+func (r *Relationship) Objects() []*Object {
 	return r.data.Objects
 }

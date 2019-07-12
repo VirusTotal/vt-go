@@ -121,7 +121,7 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 			if o.data.ID == "" && o.data.Type == "" {
 				v.Objects = nil
 			} else {
-				v.Objects = append(v.Objects, o)
+				v.Objects = append(v.Objects, &o)
 			}
 		} else {
 			if err := json.Unmarshal(v.Data, &v.Objects); err != nil {
