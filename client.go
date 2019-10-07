@@ -356,3 +356,8 @@ func (cli *Client) NewFileScanner() *FileScanner {
 func (cli *Client) NewURLScanner() *URLScanner {
 	return &URLScanner{cli: cli}
 }
+
+// NewMonitorUploader returns a new MonitorUploader.
+func (cli *Client) NewMonitorUploader() *MonitorUploader {
+	return &MonitorUploader{cli: cli}
+}
