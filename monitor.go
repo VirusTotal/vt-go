@@ -26,13 +26,13 @@ type MonitorUploader struct {
 	cli *Client
 }
 
-// Upload sends a file to VirusTotal Monitor. The file content is read from
+// upload sends a file to VirusTotal Monitor. The file content is read from
 // the r io.Reader and sent to Monitor with the provided params.
 // The function also sends a float32 through the progress channel indicating the
 // percentage of the file that has been already uploaded. The progress channel
 // can be nil if the caller is not interested in receiving upload progress
 // updates. The received object is returned as soon as the file is uploaded.
-func (s *MonitorUploader) Upload(r io.Reader, params map[string]string, progress chan<- float32) (*Object, error) {
+func (s *MonitorUploader) upload(r io.Reader, params map[string]string, progress chan<- float32) (*Object, error) {
 	var uploadURL *url.URL
 	var payloadSize int64
 
@@ -98,14 +98,27 @@ func (s *MonitorUploader) Upload(r io.Reader, params map[string]string, progress
 	return analysis, nil
 }
 
-// UploadFilename uploads a file to your VT Monitor account using a destination path
-func (s *MonitorUploader) UploadFilename(r io.Reader, monitorPath string, progress chan<- float32) (*Object, error) {
+// Upload uploads a file to your VT Monitor account using a monitorPath
+// destination path. The file content is read from the r io.Reader and sent to
+// Monitor. If the remote path already exists the contents will be replaced.
+// The function also sends a float32 through the progress channel indicating the
+// percentage of the file that has been already uploaded. The progress channel
+// can be nil if the caller is not interested in receiving upload progress
+// updates. The received object is returned as soon as the file is uploaded.
+func (s *MonitorUploader) Upload(r io.Reader, monitorPath string, progress chan<- float32) (*Object, error) {
 	params := map[string]string{"path": monitorPath}
-	return s.Upload(r, params, progress)
+	return s.upload(r, params, progress)
 }
 
-// UploadItem uploads a file to your VT Monitor account using a destination monitor_id
-func (s *MonitorUploader) UploadItem(r io.Reader, monitorItem string, progress chan<- float32) (*Object, error) {
-	params := map[string]string{"item": monitorItem}
-	return s.Upload(r, params, progress)
+// Replace modifies the contents of Monitor file identified by its
+// monitorItemID. If the monitorItemID was previously deleted or does not exist
+// a new file with the uploaded contents will be created. The file content is
+// read from the r io.Reader and sent to Monitor. The function also sends a
+// float32 through the progress channel indicating the percentage of the file
+// that has been already uploaded. The progress channel can be nil if the caller
+// is not interested in receiving upload progress updates.
+// The received object is returned as soon as the file is uploaded.
+func (s *MonitorUploader) Replace(r io.Reader, monitorItemID string, progress chan<- float32) (*Object, error) {
+	params := map[string]string{"item": monitorItemID}
+	return s.upload(r, params, progress)
 }
