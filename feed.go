@@ -43,11 +43,12 @@ type Feed struct {
 	feedType FeedType
 	// t is the time of the current package and n is index of the current item
 	// within the package, the feed cursor is determined by the t and n.
-	t       time.Time
-	n       int64
-	stop    chan bool
-	stopped bool
-	err     error
+	t                        time.Time
+	n                        int64
+	stop                     chan bool
+	stopped                  bool
+	err                      error
+	missingPackagesTolerancy int
 }
 
 // FeedOption represents an option passed to a NewFeed.
@@ -106,7 +107,9 @@ func (cli *Client) NewFeed(t FeedType, options ...FeedOption) (*Feed, error) {
 		client:   cli,
 		feedType: t,
 		t:        time.Now().UTC().Add(-30 * time.Minute),
-		stop:     make(chan bool, 1)}
+		stop:     make(chan bool, 1),
+		missingPackagesTolerancy: 1,
+	}
 
 	for _, opt := range options {
 		if err := opt(feed); err != nil {
@@ -167,7 +170,8 @@ func (f *Feed) wait(d time.Duration) int {
 	}
 }
 
-var errNoAvailableYet = errors.New("No available yet")
+var errNoAvailableYet = errors.New("not available yet")
+var errNotFound = errors.New("not found")
 
 func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 
@@ -179,12 +183,15 @@ func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 	}
 	defer httpResp.Body.Close()
 
-	if httpResp.StatusCode == http.StatusBadRequest {
+	switch httpResp.StatusCode {
+	case http.StatusBadRequest:
 		if resp, err := f.client.parseResponse(httpResp); err != nil {
 			if resp.Error.Code == "NotAvailableYet" {
 				return nil, errNoAvailableYet
 			}
 		}
+	case http.StatusNotFound:
+		return nil, errNotFound
 	}
 
 	if httpResp.StatusCode != http.StatusOK {
@@ -213,6 +220,7 @@ func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 
 func (f *Feed) retrieve() {
 	waitDuration := 20 * time.Second
+	missingPackages := 0
 loop:
 	for {
 		packageTime := f.t.Format("200601021504") // YYYYMMDDhhmm
@@ -229,6 +237,7 @@ loop:
 			f.t = f.t.Add(60 * time.Second)
 			f.n = 0
 			waitDuration = 20 * time.Second
+			missingPackages = 0
 		case errNoAvailableYet:
 			// Feed package is not available yet, let's wait for 1 minute and
 			// try again. If Close() is called during the waiting period it
@@ -237,6 +246,16 @@ loop:
 				break loop
 			}
 			waitDuration *= 2
+		case errNotFound:
+			// The feed tolerates some missing packages, if the number of missing
+			// packages is greater than missingPackagesTolerancy an error is
+			// returned, if not, it tries to get the next package.
+			missingPackages++
+			if missingPackages > f.missingPackagesTolerancy {
+				f.err = err
+				break loop
+			}
+			f.t = f.t.Add(60 * time.Second)
 		default:
 			f.err = err
 			break loop
