@@ -13,6 +13,7 @@ This library is not production-ready yet, and breaking changes can still occur.
 ## Usage example
 
 ```golang
+package main
 
 package main
 
@@ -20,19 +21,26 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	vt "github.com/VirusTotal/vt-go"
 )
 
-var APIkey = flag.String("apikey", "", "VirusTotal API key")
-var fileSHA256 = flag.String("sha256", "", "SHA-256 of some file")
+var apikey = flag.String("apikey", "", "VirusTotal API key")
+var sha256 = flag.String("sha256", "", "SHA-256 of some file")
 
 func main() {
 
 	flag.Parse()
-	client := vt.NewClient(*APIkey)
 
-	file, err := client.GetObject(vt.URL("file/%s", *fileSHA256))
+	if *apikey == "" || *sha256 == "" {
+		fmt.Println("Must pass both the --apikey and --sha256 arguments.")
+		os.Exit(0)
+	}
+
+	client := vt.NewClient(*apikey)
+
+	file, err := client.GetObject(vt.URL("files/%s", *sha256))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,6 +50,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("File %s was submitted for the last time on %v", file.ID, ls)
+	fmt.Printf("File %s was submitted for the last time on %v\n", file.ID(), ls)
 }
 ```
