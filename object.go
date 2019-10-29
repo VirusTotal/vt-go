@@ -283,6 +283,14 @@ func (obj *Object) MustGetBool(attr string) bool {
 	return result
 }
 
+// GetContext gets a context attribute by name.
+func (obj *Object) GetContext(attr string) (interface{}, error) {
+	if value, exists := obj.data.ContextAttributes[attr]; exists {
+		return value, nil
+	}
+	return nil, fmt.Errorf("context attribute \"%s\" does not exists", attr)
+}
+
 // GetContextInt64 returns a context attribute as an int64. It returns the
 // attribute's value or an error if the attribute doesn't exist or is not a
 // number.
