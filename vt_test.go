@@ -79,6 +79,9 @@ func TestGetObject(t *testing.T) {
 					"some_bool":   true,
 					"some_float":  0.1,
 				},
+				"context_attributes": map[string]interface{}{
+					"some_int": 1,
+				},
 			},
 		})
 
@@ -99,6 +102,22 @@ func TestGetObject(t *testing.T) {
 	s, err = o.GetString("some_string")
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", s)
+
+	assert.ElementsMatch(t,
+		[]string{
+			"some_int",
+			"some_string",
+			"some_date",
+			"some_bool",
+			"some_float",
+		},
+		o.Attributes())
+
+	assert.ElementsMatch(t,
+		[]string{
+			"some_int",
+		},
+		o.ContextAttributes())
 
 	assert.Equal(t, int64(1), o.MustGetInt64("some_int"))
 	assert.Equal(t, 0.1, o.MustGetFloat64("some_float"))
@@ -212,12 +231,18 @@ func TestIterator(t *testing.T) {
 					"attributes": map[string]interface{}{
 						"some_string": "hello",
 					},
+					"context_attributes": map[string]interface{}{
+						"some_string": "foo",
+					},
 				},
 				{
 					"type": "object_type",
 					"id":   "object_id_2",
 					"attributes": map[string]interface{}{
 						"some_string": "world",
+					},
+					"context_attributes": map[string]interface{}{
+						"some_string": "bar",
 					},
 				},
 			}})
@@ -233,9 +258,14 @@ func TestIterator(t *testing.T) {
 
 	assert.True(t, it.Next())
 	assert.Equal(t, "object_id_1", it.Get().ID())
+	s, _ := it.Get().GetContextString("some_string")
+	assert.Equal(t, "foo", s)
 	assert.True(t, it.Next())
 	assert.Equal(t, "object_id_2", it.Get().ID())
+	s, _ = it.Get().GetContextString("some_string")
+	assert.Equal(t, "bar", s)
 	assert.False(t, it.Next())
+
 }
 
 func TestIteratorSingleObject(t *testing.T) {

@@ -82,6 +82,21 @@ func (obj *Object) Attributes() []string {
 	return result
 }
 
+// ContextAttributes returns a list with the names of the object's context
+// attributes. Context attributes are additional attributes that only make
+// sense in a specific context. For example, when retrieving objects that
+// are part of a relationship, the objects may have attributes that only make
+// sense in the context of that relationship.
+func (obj *Object) ContextAttributes() []string {
+	result := make([]string, len(obj.data.ContextAttributes))
+	i := 0
+	for attr := range obj.data.ContextAttributes {
+		result[i] = attr
+		i++
+	}
+	return result
+}
+
 // Relationships returns a list with the names of the object's relationships.
 func (obj *Object) Relationships() []string {
 	result := make([]string, len(obj.data.Relationships))
