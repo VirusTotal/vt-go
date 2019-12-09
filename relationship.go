@@ -18,7 +18,7 @@ import "encoding/json"
 type relationshipData struct {
 	Data  json.RawMessage `json:"data,omitempty"`
 	Links Links           `json:"links,omitempty"`
-	// IsOneToOne is true if this is a one-to-one relationshio and False if
+	// IsOneToOne is true if this is a one-to-one relationship and False if
 	// otherwise. If true Objects contains one object at most.
 	IsOneToOne bool
 	Objects    []*Object

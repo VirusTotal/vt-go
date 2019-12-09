@@ -31,7 +31,7 @@ type Client struct {
 	APIKey string
 	// Agent is a string included in the User-Agent header of every request
 	// sent to VirusTotal's servers. Users of this client are encouraged to
-	// use some string that uniquely indentify the program making the requests.
+	// use some string that uniquely identify the program making the requests.
 	Agent      string
 	httpClient *http.Client
 }

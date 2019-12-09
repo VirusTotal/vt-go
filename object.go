@@ -218,7 +218,7 @@ func (obj *Object) MustGetFloat64(attr string) float64 {
 }
 
 // GetString returns an attribute as a string. It returns the attribute's
-// valueor an error if the attribute doesn't exist or is not a string.
+// value or an error if the attribute doesn't exist or is not a string.
 func (obj *Object) GetString(attr string) (s string, err error) {
 	value, err := obj.Get(attr)
 	if err != nil {
@@ -375,7 +375,7 @@ func (obj *Object) SetTime(attr string, value time.Time) error {
 
 // GetRelationship returns a relationship by name. Object's will have
 // relationships were explicitly asked for during a call to GetObject by
-// including the "relationships" paramether in the URL.
+// including the "relationships" parameter in the URL.
 //
 // Example:
 //   f, _ := client.GetObject(vt.URL("files/%s?relationships=contacted_ips"))
