@@ -15,8 +15,6 @@ This library is not production-ready yet, and breaking changes can still occur.
 ```golang
 package main
 
-package main
-
 import (
 	"flag"
 	"fmt"
