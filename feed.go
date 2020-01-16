@@ -106,7 +106,7 @@ func (cli *Client) NewFeed(t FeedType, options ...FeedOption) (*Feed, error) {
 	feed := &Feed{
 		client:   cli,
 		feedType: t,
-		t:        time.Now().UTC().Add(-30 * time.Minute),
+		t:        time.Now().UTC().Add(-1 * time.Hour),
 		stop:     make(chan bool, 1),
 		missingPackagesTolerancy: 1,
 	}
