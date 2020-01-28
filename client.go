@@ -287,7 +287,7 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 	}
 
 	// Last resort return a generic error.
-	return 0, fmt.Errorf("vt: unknown error downloading %s", hash)
+	return 0, fmt.Errorf("Unknown error downloading %q, HTTP response code: %d", hash, resp.StatusCode)
 }
 
 // Iterator returns an iterator for a collection. If the endpoint passed to the
