@@ -48,7 +48,7 @@ type Feed struct {
 	stop                     chan bool
 	stopped                  bool
 	err                      error
-	missingPackagesTolerancy int
+	missingPackagesTolerance int
 }
 
 // FeedOption represents an option passed to a NewFeed.
@@ -104,11 +104,11 @@ func FeedCursor(cursor string) FeedOption {
 //
 func (cli *Client) NewFeed(t FeedType, options ...FeedOption) (*Feed, error) {
 	feed := &Feed{
-		client:   cli,
-		feedType: t,
-		t:        time.Now().UTC().Add(-1 * time.Hour),
-		stop:     make(chan bool, 1),
-		missingPackagesTolerancy: 1,
+		client:                   cli,
+		feedType:                 t,
+		t:                        time.Now().UTC().Add(-1 * time.Hour),
+		stop:                     make(chan bool, 1),
+		missingPackagesTolerance: 1,
 	}
 
 	for _, opt := range options {
@@ -248,10 +248,10 @@ loop:
 			waitDuration *= 2
 		case errNotFound:
 			// The feed tolerates some missing packages, if the number of missing
-			// packages is greater than missingPackagesTolerancy an error is
+			// packages is greater than missingPackagesTolerance an error is
 			// returned, if not, it tries to get the next package.
 			missingPackages++
-			if missingPackages > f.missingPackagesTolerancy {
+			if missingPackages > f.missingPackagesTolerance {
 				f.err = err
 				break loop
 			}

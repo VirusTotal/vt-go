@@ -373,9 +373,10 @@ func (obj *Object) SetTime(attr string, value time.Time) error {
 	return obj.Set(attr, value.Unix())
 }
 
-// GetRelationship returns a relationship by name. Object's will have
-// relationships were explicitly asked for during a call to GetObject by
-// including the "relationships" parameter in the URL.
+// GetRelationship returns a relationship by name. Only those relationships
+// that you explicitly asked for in a call to GetObject can be obtained. You
+// can ask by a relationship by including the "relationships" parameter in the
+// URL used with GetObject.
 //
 // Example:
 //   f, _ := client.GetObject(vt.URL("files/%s?relationships=contacted_ips"))
