@@ -276,7 +276,18 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 		return 0, err
 	}
 	defer resp.Body.Close()
-	return io.Copy(w, resp.Body)
+
+	if resp.StatusCode == http.StatusOK {
+		return io.Copy(w, resp.Body)
+	}
+
+	// See if there is an error in the response.
+	if _, err := cli.parseResponse(resp); err != nil {
+		return 0, err
+	}
+
+	// Last resort return a generic error.
+	return 0, fmt.Errorf("Unknown error downloading %q, HTTP response code: %d", hash, resp.StatusCode)
 }
 
 // Iterator returns an iterator for a collection. If the endpoint passed to the
