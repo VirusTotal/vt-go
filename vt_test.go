@@ -71,7 +71,7 @@ func TestGetObject(t *testing.T) {
 		SetResponse(map[string]interface{}{
 			"data": map[string]interface{}{
 				"type": "object_type",
-				"id":   "object_id",
+				"id":   123,
 				"attributes": map[string]interface{}{
 					"some_int":    1,
 					"some_string": "hello",
@@ -92,7 +92,7 @@ func TestGetObject(t *testing.T) {
 	o, err := c.GetObject(vt.URL("/collection/object_id"))
 
 	assert.NoError(t, err)
-	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, 123, o.ID())
 	assert.Equal(t, "object_type", o.Type())
 
 	s, err := o.Get("some_string")
@@ -154,7 +154,7 @@ func TestPostObject(t *testing.T) {
 		SetResponse(map[string]interface{}{
 			"data": map[string]interface{}{
 				"type": "object_type",
-				"id":   "object_id",
+				"id":   123,
 				"attributes": map[string]interface{}{
 					"some_string": "hello",
 				},
@@ -169,7 +169,7 @@ func TestPostObject(t *testing.T) {
 	err := c.PostObject(vt.URL("/collection"), o)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, 123, o.ID())
 	assert.Equal(t, "object_type", o.Type())
 	assert.Equal(t, "hello", o.MustGetString("some_string"))
 }
@@ -181,7 +181,7 @@ func TestPatchObject(t *testing.T) {
 		SetResponse(map[string]interface{}{
 			"data": map[string]interface{}{
 				"type": "object_type",
-				"id":   "object_id",
+				"id":   123,
 				"attributes": map[string]interface{}{
 					"some_string": "hello",
 					"some_int":    1,
@@ -195,7 +195,7 @@ func TestPatchObject(t *testing.T) {
 		SetResponse(map[string]interface{}{
 			"data": map[string]interface{}{
 				"type": "object_type",
-				"id":   "object_id",
+				"id":   123,
 				"attributes": map[string]interface{}{
 					"some_string": "hello",
 				},
@@ -207,14 +207,14 @@ func TestPatchObject(t *testing.T) {
 	c := vt.NewClient("api_key")
 
 	vt.SetHost(getServer.URL)
-	o, err := c.GetObject(vt.URL("/collection/object_id"))
+	o, err := c.GetObject(vt.URL("/collection/123"))
 
 	vt.SetHost(patchServer.URL)
 	o.SetString("some_string", "world")
-	err = c.PatchObject(vt.URL("/collection/object_id"), o)
+	err = c.PatchObject(vt.URL("/collection/123"), o)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "object_id", o.ID())
+	assert.Equal(t, 123, o.ID())
 	assert.Equal(t, "object_type", o.Type())
 	assert.Equal(t, "hello", o.MustGetString("some_string"))
 }
@@ -227,7 +227,7 @@ func TestIterator(t *testing.T) {
 			"data": []map[string]interface{}{
 				{
 					"type": "object_type",
-					"id":   "object_id_1",
+					"id":   1000,
 					"attributes": map[string]interface{}{
 						"some_string": "hello",
 					},
@@ -237,7 +237,7 @@ func TestIterator(t *testing.T) {
 				},
 				{
 					"type": "object_type",
-					"id":   "object_id_2",
+					"id":   2000,
 					"attributes": map[string]interface{}{
 						"some_string": "world",
 					},
@@ -257,11 +257,11 @@ func TestIterator(t *testing.T) {
 	assert.NoError(t, it.Error())
 
 	assert.True(t, it.Next())
-	assert.Equal(t, "object_id_1", it.Get().ID())
+	assert.Equal(t, 1000, it.Get().ID())
 	s, _ := it.Get().GetContextString("some_string")
 	assert.Equal(t, "foo", s)
 	assert.True(t, it.Next())
-	assert.Equal(t, "object_id_2", it.Get().ID())
+	assert.Equal(t, 2000, it.Get().ID())
 	s, _ = it.Get().GetContextString("some_string")
 	assert.Equal(t, "bar", s)
 	assert.False(t, it.Next())
@@ -275,7 +275,7 @@ func TestIteratorSingleObject(t *testing.T) {
 		SetResponse(map[string]interface{}{
 			"data": map[string]interface{}{
 				"type": "object_type",
-				"id":   "object_id",
+				"id":   123,
 				"attributes": map[string]interface{}{
 					"some_string": "hello",
 				},
@@ -292,7 +292,7 @@ func TestIteratorSingleObject(t *testing.T) {
 	assert.NoError(t, it.Error())
 
 	assert.True(t, it.Next())
-	assert.Equal(t, "object_id", it.Get().ID())
+	assert.Equal(t, 123, it.Get().ID())
 	assert.False(t, it.Next())
 	assert.Equal(t, "", it.Cursor())
 }

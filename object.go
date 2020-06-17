@@ -23,7 +23,7 @@ import (
 // objectData is the structure that have the data returned by the API for an
 // object.
 type objectData struct {
-	ID                string                       `json:"id,omitempty"`
+	ID                int                          `json:"id,omitempty"`
 	Type              string                       `json:"type,omitempty"`
 	Attributes        map[string]interface{}       `json:"attributes,omitempty"`
 	ContextAttributes map[string]interface{}       `json:"context_attributes,omitempty"`
@@ -54,7 +54,7 @@ func NewObject(objType string) *Object {
 }
 
 // NewObjectWithID creates a new object with the specified ID.
-func NewObjectWithID(objType, id string) *Object {
+func NewObjectWithID(objType string, id int) *Object {
 	return &Object{data: objectData{
 		Type:       objType,
 		ID:         id,
@@ -62,7 +62,7 @@ func NewObjectWithID(objType, id string) *Object {
 }
 
 // ID returns the object's identifier.
-func (obj *Object) ID() string {
+func (obj *Object) ID() int {
 	return obj.data.ID
 }
 
@@ -133,7 +133,7 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(v.Data, &o); err == nil {
 			v.IsOneToOne = true
 			// If the value is null the Object will have an empty ID and Type.
-			if o.data.ID == "" && o.data.Type == "" {
+			if o.data.ID == 0 && o.data.Type == "" {
 				v.Objects = nil
 			} else {
 				v.Objects = append(v.Objects, &o)
