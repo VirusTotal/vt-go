@@ -169,7 +169,7 @@ func TestGetObject(t *testing.T) {
 	_, err = o.Get("complex.non_existing")
 	assert.Error(t, err)
 
-	// Testing get after setting.
+	// Testing get after set.
 	err = o.Set("some_int", int64(317))
 	assert.NoError(t, err)
 	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
