@@ -78,6 +78,13 @@ func TestGetObject(t *testing.T) {
 					"some_date":   0,
 					"some_bool":   true,
 					"some_float":  0.1,
+					"super": map[string]interface{}{
+						"data": 1,
+						"complex": map[string]interface{}{
+							"data":      true,
+							"some_int2": 1234,
+						},
+					},
 				},
 				"context_attributes": map[string]interface{}{
 					"some_int": 1,
@@ -103,6 +110,18 @@ func TestGetObject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", s)
 
+	v, err := o.GetPath("super.complex.data")
+	assert.NoError(t, err)
+	assert.Equal(t, true, v)
+
+	v, err = o.GetPath("super.data")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1), v)
+
+	v, err = o.GetPath("super.complex.some_int2")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1234), v)
+
 	assert.ElementsMatch(t,
 		[]string{
 			"some_int",
@@ -110,6 +129,7 @@ func TestGetObject(t *testing.T) {
 			"some_date",
 			"some_bool",
 			"some_float",
+			"super",
 		},
 		o.Attributes())
 
@@ -144,6 +164,9 @@ func TestGetObject(t *testing.T) {
 	assert.Error(t, err)
 
 	_, err = o.GetBool("non_existing")
+	assert.Error(t, err)
+
+	_, err = o.GetPath("complex.non_existing")
 	assert.Error(t, err)
 }
 

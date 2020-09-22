@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/thedevsaddam/gojsonq"
 	"time"
 )
 
@@ -169,6 +170,22 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 		return n, err
 	}
 	return n, fmt.Errorf("context attribute \"%s\" does not exists", name)
+}
+
+// Get attribute by path. It might include dots to fetch nested attributes.
+// Example: pe_info.imphash
+func (obj *Object) GetPath(attr string) (interface{}, error) {
+	json, err := obj.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	key := "attributes." + attr
+	v := gojsonq.New().FromString(string(json))
+	results := v.Find(key)
+	if err := v.Error(); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 // Get an attribute by name.
