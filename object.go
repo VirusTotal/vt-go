@@ -36,6 +36,10 @@ type objectData struct {
 type Object struct {
 	// Contains the object's data as returned by the API.
 	data objectData
+
+	// Contains json data.
+	json string
+
 	// Contains a list the attributes that have been modified via a call to
 	// any of the SetXX methods.
 	modifiedAttributes []string
@@ -149,18 +153,6 @@ func (obj *Object) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (obj *Object) getAttributeNumber(attr string) (json.Number, error) {
-	value, err := obj.Get(attr)
-	if err != nil {
-		return "", err
-	}
-	n, isNumber := value.(json.Number)
-	if !isNumber {
-		err = fmt.Errorf("context attribute \"%s\" is not a number", attr)
-	}
-	return n, err
-}
-
 func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err error) {
 	if attrValue, attrExists := obj.data.ContextAttributes[name]; attrExists {
 		n, isNumber := attrValue.(json.Number)
@@ -172,15 +164,31 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 	return n, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
 
-// Get attribute by path. It might include dots to fetch nested attributes.
+// getJsonQ returns a new JsonQ obj to used in the getter methods.
+func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
+	var json string
+	if len(obj.json) != 0 && len(obj.modifiedAttributes) == 0 {
+		// We use the cached json string if there are no modified attributes.
+		json = obj.json
+	} else {
+		jsonByte, err := obj.MarshalJSON()
+		if err != nil {
+			return nil, err
+		}
+		json = string(jsonByte)
+		obj.json = json
+	}
+	return gojsonq.New().FromString(json), nil
+}
+
+// Get attribute by name. It might include dots to fetch nested attributes.
 // Example: pe_info.imphash
-func (obj *Object) GetPath(attr string) (interface{}, error) {
-	json, err := obj.MarshalJSON()
+func (obj *Object) Get(attr string) (interface{}, error) {
+	key := "attributes." + attr
+	v, err := obj.getJsonQ()
 	if err != nil {
 		return nil, err
 	}
-	key := "attributes." + attr
-	v := gojsonq.New().FromString(string(json))
 	results := v.Find(key)
 	if err := v.Error(); err != nil {
 		return nil, err
@@ -188,22 +196,18 @@ func (obj *Object) GetPath(attr string) (interface{}, error) {
 	return results, nil
 }
 
-// Get an attribute by name.
-func (obj *Object) Get(attr string) (interface{}, error) {
-	if value, exists := obj.data.Attributes[attr]; exists {
-		return value, nil
-	}
-	return nil, fmt.Errorf("attribute \"%s\" does not exists", attr)
-}
-
 // GetInt64 returns an attribute as an int64. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a number.
 func (obj *Object) GetInt64(attr string) (int64, error) {
-	n, err := obj.getAttributeNumber(attr)
-	if err == nil {
-		return n.Int64()
+	n, err := obj.Get(attr)
+	if err != nil {
+		return 0, err
 	}
-	return 0, err
+	value, ok := n.(float64)
+	if !ok {
+		return 0, fmt.Errorf("attr %v is not a number", attr)
+	}
+	return int64(value), err
 }
 
 // MustGetInt64 is like GetInt64, but it panic in case of error.
@@ -218,11 +222,15 @@ func (obj *Object) MustGetInt64(attr string) int64 {
 // GetFloat64 returns an attribute as a float64. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a number.
 func (obj *Object) GetFloat64(attr string) (float64, error) {
-	n, err := obj.getAttributeNumber(attr)
-	if err == nil {
-		return n.Float64()
+	n, err := obj.Get(attr)
+	if err != nil {
+		return 0, err
 	}
-	return 0, err
+	value, ok := n.(float64)
+	if !ok {
+		return 0, fmt.Errorf("attr %v is not a number", attr)
+	}
+	return value, err
 }
 
 // MustGetFloat64 is like GetFloat64, but it panic in case of error.
@@ -260,12 +268,15 @@ func (obj *Object) MustGetString(attr string) string {
 // GetTime returns an attribute as a time. It returns the attribute's
 // value or an error if the attribute doesn't exist or is not a time.
 func (obj *Object) GetTime(attr string) (t time.Time, err error) {
-	n, err := obj.getAttributeNumber(attr)
-	if err == nil {
-		i, err := n.Int64()
-		return time.Unix(i, 0), err
+	n, err := obj.Get(attr)
+	if err != nil {
+		return time.Unix(0, 0), err
 	}
-	return time.Unix(0, 0), err
+	value, ok := n.(float64)
+	if !ok {
+		return time.Unix(0, 0), fmt.Errorf("attr %v is not a number", attr)
+	}
+	return time.Unix(int64(value), 0), err
 }
 
 // MustGetTime is like GetTime, but it panic in case of error.

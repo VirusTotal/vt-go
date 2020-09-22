@@ -110,15 +110,15 @@ func TestGetObject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", s)
 
-	v, err := o.GetPath("super.complex.data")
+	v, err := o.Get("super.complex.data")
 	assert.NoError(t, err)
 	assert.Equal(t, true, v)
 
-	v, err = o.GetPath("super.data")
+	v, err = o.Get("super.data")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1), v)
 
-	v, err = o.GetPath("super.complex.some_int2")
+	v, err = o.Get("super.complex.some_int2")
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1234), v)
 
@@ -166,8 +166,14 @@ func TestGetObject(t *testing.T) {
 	_, err = o.GetBool("non_existing")
 	assert.Error(t, err)
 
-	_, err = o.GetPath("complex.non_existing")
+	_, err = o.Get("complex.non_existing")
 	assert.Error(t, err)
+
+	// Testing get after setting.
+	err = o.Set("some_int", int64(317))
+	assert.NoError(t, err)
+	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
+	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
 }
 
 func TestPostObject(t *testing.T) {
