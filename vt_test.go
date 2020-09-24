@@ -78,6 +78,21 @@ func TestGetObject(t *testing.T) {
 					"some_date":   0,
 					"some_bool":   true,
 					"some_float":  0.1,
+					"super": map[string]interface{}{
+						"data": 1,
+						"complex": map[string]interface{}{
+							"data":      true,
+							"some_int2": 1234,
+						},
+					},
+					"some_list": []interface{}{
+						map[string]interface{}{
+							"data": 1,
+						},
+						map[string]interface{}{
+							"data": 2,
+						},
+					},
 				},
 				"context_attributes": map[string]interface{}{
 					"some_int": 1,
@@ -103,6 +118,22 @@ func TestGetObject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", s)
 
+	v, err := o.Get("super.complex.data")
+	assert.NoError(t, err)
+	assert.Equal(t, true, v)
+
+	v, err = o.Get("super.data")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1), v)
+
+	v, err = o.Get("super.complex.some_int2")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1234), v)
+
+	v, err = o.Get("some_list.[0].data")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1), v)
+
 	assert.ElementsMatch(t,
 		[]string{
 			"some_int",
@@ -110,6 +141,8 @@ func TestGetObject(t *testing.T) {
 			"some_date",
 			"some_bool",
 			"some_float",
+			"super",
+			"some_list",
 		},
 		o.Attributes())
 
@@ -145,6 +178,15 @@ func TestGetObject(t *testing.T) {
 
 	_, err = o.GetBool("non_existing")
 	assert.Error(t, err)
+
+	_, err = o.Get("complex.non_existing")
+	assert.Error(t, err)
+
+	// Testing get after set.
+	err = o.Set("some_int", int64(317))
+	assert.NoError(t, err)
+	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
+	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
 }
 
 func TestPostObject(t *testing.T) {
