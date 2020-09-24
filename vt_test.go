@@ -85,6 +85,14 @@ func TestGetObject(t *testing.T) {
 							"some_int2": 1234,
 						},
 					},
+					"some_list": []interface{}{
+						map[string]interface{}{
+							"data": 1,
+						},
+						map[string]interface{}{
+							"data": 2,
+						},
+					},
 				},
 				"context_attributes": map[string]interface{}{
 					"some_int": 1,
@@ -122,6 +130,10 @@ func TestGetObject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, float64(1234), v)
 
+	v, err = o.Get("some_list.[0].data")
+	assert.NoError(t, err)
+	assert.Equal(t, float64(1), v)
+
 	assert.ElementsMatch(t,
 		[]string{
 			"some_int",
@@ -130,6 +142,7 @@ func TestGetObject(t *testing.T) {
 			"some_bool",
 			"some_float",
 			"super",
+			"some_list",
 		},
 		o.Attributes())
 

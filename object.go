@@ -182,7 +182,11 @@ func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
 }
 
 // Get attribute by name. It might include dots to fetch nested attributes.
-// Example: pe_info.imphash
+// Example: 'vhash'
+// Example for nested objects: 'pe_info.imphash'
+// Example for arrays: 'tags.[0]'
+// You can find additional attr modifiers in gojsonq github repository
+// https://github.com/thedevsaddam/gojsonq/wiki/Queries#findpath
 func (obj *Object) Get(attr string) (interface{}, error) {
 	key := "attributes." + attr
 	v, err := obj.getJsonQ()
