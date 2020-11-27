@@ -69,20 +69,16 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
-func NewClientWithOptions(APIKey string, options ...ClientOption) *Client {
-	c := NewClient(APIKey)
+// NewClient creates a new client for interacting with the VirusTotal API using
+// the provided API key.
+func NewClient(APIKey string, opts ...ClientOption) *Client {
+	c := &Client{APIKey: APIKey, httpClient: &http.Client{}}
 
-	for _, o := range options {
+	for _, o := range opts {
 		o(c)
 	}
 
 	return c
-}
-
-// NewClient creates a new client for interacting with the VirusTotal API using
-// the provided API key.
-func NewClient(APIKey string) *Client {
-	return &Client{APIKey: APIKey, httpClient: &http.Client{}}
 }
 
 // sendRequest sends a HTTP request to the VirusTotal REST API.
