@@ -325,13 +325,13 @@ func (obj *Object) GetStringSlice(attr string) (s []string, err error) {
 
 	rawValues, isArrayInterface := value.([]interface{})
 	if !isArrayInterface {
-		return s, fmt.Errorf("attribute \"%s\" is not a string slice", attr)
+		return s, fmt.Errorf("attribute %q is not a string slice", attr)
 	}
 
 	for _, rawValue := range rawValues {
 		strValue, isString := interface{}(rawValue).(string)
 		if !isString {
-			return s, fmt.Errorf("attribute \"%s\" is not a string", attr)
+			return s, fmt.Errorf("attribute %q is not a string", attr)
 		}
 		s = append(s, strValue)
 	}
