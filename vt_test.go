@@ -78,6 +78,7 @@ func TestGetObject(t *testing.T) {
 					"some_date":   0,
 					"some_bool":   true,
 					"some_float":  0.1,
+					"some_tags": []string{"peexe", "trusted"},
 					"super": map[string]interface{}{
 						"data": 1,
 						"complex": map[string]interface{}{
@@ -141,6 +142,7 @@ func TestGetObject(t *testing.T) {
 			"some_date",
 			"some_bool",
 			"some_float",
+			"some_tags",
 			"super",
 			"some_list",
 		},
@@ -151,6 +153,8 @@ func TestGetObject(t *testing.T) {
 			"some_int",
 		},
 		o.ContextAttributes())
+
+	assert.ElementsMatch(t, o.MustGetStringSlice("some_tags"), []string{"peexe", "trusted"})
 
 	assert.Equal(t, int64(1), o.MustGetInt64("some_int"))
 	assert.Equal(t, 0.1, o.MustGetFloat64("some_float"))
@@ -180,6 +184,9 @@ func TestGetObject(t *testing.T) {
 	assert.Error(t, err)
 
 	_, err = o.Get("complex.non_existing")
+	assert.Error(t, err)
+
+	_, err = o.GetStringSlice("non_existing")
 	assert.Error(t, err)
 
 	// Testing get after set.
