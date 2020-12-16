@@ -315,6 +315,39 @@ func (obj *Object) MustGetBool(attr string) bool {
 	return result
 }
 
+// GetStringSlice returns an attribute as a string slice. It returns the attribute's
+// value or an error if the attribute doesn't exist or is not a string slice.
+func (obj *Object) GetStringSlice(attr string) (s []string, err error) {
+	value, err := obj.Get(attr)
+	if err != nil {
+		return s, err
+	}
+
+	rawValues, isArrayInterface := value.([]interface{})
+	if !isArrayInterface {
+		return s, fmt.Errorf("attribute %q is not a string slice", attr)
+	}
+
+	for _, rawValue := range rawValues {
+		strValue, isString := interface{}(rawValue).(string)
+		if !isString {
+			return s, fmt.Errorf("attribute %q is not a string", attr)
+		}
+		s = append(s, strValue)
+	}
+
+	return s, err
+}
+
+// MustGetStringSlice is like GetStringSlice, but it panic in case of error.
+func (obj *Object) MustGetStringSlice(attr string) []string {
+	result, err := obj.GetStringSlice(attr)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 // GetContext gets a context attribute by name.
 func (obj *Object) GetContext(attr string) (interface{}, error) {
 	if value, exists := obj.data.ContextAttributes[attr]; exists {
