@@ -67,7 +67,13 @@ func (e Error) Error() string {
 // URLs to be passed to any function expecting a *url.URL in this library.
 func URL(pathFmt string, a ...interface{}) *url.URL {
 	path := fmt.Sprintf(pathFmt, a...)
-	url, _ := url.Parse(path)
+	url, err := url.Parse(path)
+	if err != nil {
+		msg := fmt.Sprintf(
+			"error formatting URL \"%s\": %s",
+			pathFmt, err)
+		panic(msg)
+	}
 	return baseURL.ResolveReference(url)
 }
 
