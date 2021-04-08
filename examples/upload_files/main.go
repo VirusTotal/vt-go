@@ -28,7 +28,6 @@ func uploadAndScan(fileUploader FileUploader, wg *sync.WaitGroup) {
 	defer wg.Done()
 	f, err := os.Open(fileUploader.filename)
 	if err != nil {
-		fmt.Println(err)
 		fileUploader.results <- FileUploaderResult{nil, err}
 	} else {
 		defer f.Close()
@@ -43,7 +42,7 @@ func uploadFiles(path string, results chan FileUploaderResult, scanner *vt.FileS
 
 	id_file := 0
 	fmt.Printf("Scanning: %s \n", path)
-	err := filepath.Walk(path, func(filename string, info os.FileInfo, err error) error {
+	filepath.Walk(path, func(filename string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -57,10 +56,6 @@ func uploadFiles(path string, results chan FileUploaderResult, scanner *vt.FileS
 
 		return nil
 	})
-
-	if err != nil {
-		log.Fatal((err))
-	}
 
 	wg.Wait()
 	close(results)
