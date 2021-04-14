@@ -17,8 +17,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/thedevsaddam/gojsonq"
 	"time"
+
+	"github.com/thedevsaddam/gojsonq"
 )
 
 // objectData is the structure that have the data returned by the API for an
@@ -37,8 +38,8 @@ type Object struct {
 	// Contains the object's data as returned by the API.
 	data objectData
 
-	// Contains json data.
-	json string
+	// Object used for retrieving attributes using jsonq.
+	jsonq *gojsonq.JSONQ
 
 	// Contains a list the attributes that have been modified via a call to
 	// any of the SetXX methods.
@@ -168,7 +169,7 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 // decoder returns numeric attributes as float64, no matter if they come  as
 // integers from the API. This custom decoder returns numeric attributes as
 // json.Number values.
-type decoder struct {}
+type decoder struct{}
 
 func (d *decoder) Decode(data []byte, v interface{}) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
@@ -180,19 +181,16 @@ func (d *decoder) Decode(data []byte, v interface{}) error {
 
 // getJsonQ returns a new JsonQ obj to used in the getter methods.
 func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
-	var json string
-	if len(obj.json) != 0 && len(obj.modifiedAttributes) == 0 {
-		// We use the cached json string if there are no modified attributes.
-		json = obj.json
-	} else {
-		jsonByte, err := obj.MarshalJSON()
-		if err != nil {
+	if obj.jsonq == nil || len(obj.modifiedAttributes) > 0 {
+		if j, err := json.Marshal(obj.data.Attributes); err == nil {
+			obj.jsonq = gojsonq.New(gojsonq.WithDecoder(&decoder{})).FromString(string(j))
+		} else {
 			return nil, err
 		}
-		json = string(jsonByte)
-		obj.json = json
+	} else {
+		obj.jsonq.Reset()
 	}
-	return gojsonq.New(gojsonq.WithDecoder(&decoder{})).FromString(json), nil
+	return obj.jsonq, nil
 }
 
 // Get attribute by name. It might include dots to fetch nested attributes.
@@ -205,12 +203,11 @@ func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
 // attributes will be of type json.Number, use GetInt64 or GetFloat64 if you
 // want one the result as an integer or float number.
 func (obj *Object) Get(attr string) (interface{}, error) {
-	key := "attributes." + attr
 	v, err := obj.getJsonQ()
 	if err != nil {
 		return nil, err
 	}
-	results := v.Find(key)
+	results := v.Find(attr)
 	if err := v.Error(); err != nil {
 		return nil, err
 	}
