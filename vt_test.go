@@ -125,15 +125,15 @@ func TestGetObject(t *testing.T) {
 
 	v, err = o.Get("super.data")
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1), v)
+	assert.Equal(t, json.Number("1"), v)
 
 	v, err = o.Get("super.complex.some_int2")
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1234), v)
+	assert.Equal(t, json.Number("1234"), v)
 
 	v, err = o.Get("some_list.[0].data")
 	assert.NoError(t, err)
-	assert.Equal(t, float64(1), v)
+	assert.Equal(t, json.Number("1"), v)
 
 	assert.ElementsMatch(t,
 		[]string{
