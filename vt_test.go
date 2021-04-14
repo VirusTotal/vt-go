@@ -1,23 +1,23 @@
-package vt_test
+package vt
 
 import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"github.com/VirusTotal/vt-go"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	vt "github.com/VirusTotal/vt-go"
 	"github.com/stretchr/testify/assert"
 )
 
 func ExampleURL() {
-	vt.SetHost("https://www.virustotal.com")
-	url := vt.URL("files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f")
+	SetHost("https://www.virustotal.com")
+	url := URL("files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f")
 	fmt.Println(url)
-	url = vt.URL("intelligence/retrohunt_jobs/%s", "1234567")
+	url = URL("intelligence/retrohunt_jobs/%s", "1234567")
 	fmt.Println(url)
 	// Output:
 	// https://www.virustotal.com/api/v3/files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
@@ -103,9 +103,9 @@ func TestGetObject(t *testing.T) {
 
 	defer ts.Close()
 
-	vt.SetHost(ts.URL)
-	c := vt.NewClient("api_key")
-	o, err := c.GetObject(vt.URL("/collection/object_id"))
+	SetHost(ts.URL)
+	c := NewClient("api_key")
+	o, err := c.GetObject(URL("/collection/object_id"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
