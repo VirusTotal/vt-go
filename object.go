@@ -164,6 +164,20 @@ func (obj *Object) getContextAttributeNumber(name string) (n json.Number, err er
 	return n, fmt.Errorf("context attribute \"%s\" does not exists", name)
 }
 
+// JSON decoder used by the JSONQ object for decoding API responses, the default
+// decoder returns numeric attributes as float64, no matter if they come  as
+// integers from the API. This custom decoder returns numeric attributes as
+// json.Number values.
+type decoder struct {}
+
+func (d *decoder) Decode(data []byte, v interface{}) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	// Tell the decoder to use json.Number for numeric values, instead of
+	// returning float64 values.
+	dec.UseNumber()
+	return dec.Decode(v)
+}
+
 // getJsonQ returns a new JsonQ obj to used in the getter methods.
 func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
 	var json string
@@ -178,7 +192,7 @@ func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
 		json = string(jsonByte)
 		obj.json = json
 	}
-	return gojsonq.New().FromString(json), nil
+	return gojsonq.New(gojsonq.WithDecoder(&decoder{})).FromString(json), nil
 }
 
 // Get attribute by name. It might include dots to fetch nested attributes.
@@ -187,6 +201,9 @@ func (obj *Object) getJsonQ() (*gojsonq.JSONQ, error) {
 // Example for arrays: 'tags.[0]'
 // You can find additional attr modifiers in gojsonq github repository
 // https://github.com/thedevsaddam/gojsonq/wiki/Queries#findpath
+// The actual type for the returned value depends on attribute's type. Numeric
+// attributes will be of type json.Number, use GetInt64 or GetFloat64 if you
+// want one the result as an integer or float number.
 func (obj *Object) Get(attr string) (interface{}, error) {
 	key := "attributes." + attr
 	v, err := obj.getJsonQ()
@@ -207,11 +224,11 @@ func (obj *Object) GetInt64(attr string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	value, ok := n.(float64)
+	value, ok := n.(json.Number)
 	if !ok {
 		return 0, fmt.Errorf("attr %v is not a number", attr)
 	}
-	return int64(value), err
+	return value.Int64()
 }
 
 // MustGetInt64 is like GetInt64, but it panic in case of error.
@@ -230,11 +247,11 @@ func (obj *Object) GetFloat64(attr string) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
-	value, ok := n.(float64)
+	value, ok := n.(json.Number)
 	if !ok {
 		return 0, fmt.Errorf("attr %v is not a number", attr)
 	}
-	return value, err
+	return value.Float64()
 }
 
 // MustGetFloat64 is like GetFloat64, but it panic in case of error.
@@ -276,11 +293,12 @@ func (obj *Object) GetTime(attr string) (t time.Time, err error) {
 	if err != nil {
 		return time.Unix(0, 0), err
 	}
-	value, ok := n.(float64)
+	value, ok := n.(json.Number)
 	if !ok {
 		return time.Unix(0, 0), fmt.Errorf("attr %v is not a number", attr)
 	}
-	return time.Unix(int64(value), 0), err
+	ts, err := value.Int64()
+	return time.Unix(ts, 0), err
 }
 
 // MustGetTime is like GetTime, but it panic in case of error.
