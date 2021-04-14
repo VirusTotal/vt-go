@@ -4,13 +4,11 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/VirusTotal/vt-go"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func ExampleURL() {
@@ -78,7 +76,7 @@ func TestGetObject(t *testing.T) {
 					"some_date":   0,
 					"some_bool":   true,
 					"some_float":  0.1,
-					"some_tags": []string{"peexe", "trusted"},
+					"some_tags":   []string{"peexe", "trusted"},
 					"super": map[string]interface{}{
 						"data": 1,
 						"complex": map[string]interface{}{
@@ -196,6 +194,7 @@ func TestGetObject(t *testing.T) {
 	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
 }
 
+
 func TestPostObject(t *testing.T) {
 
 	ts := NewTestServer(t).
@@ -212,10 +211,10 @@ func TestPostObject(t *testing.T) {
 
 	defer ts.Close()
 
-	vt.SetHost(ts.URL)
-	c := vt.NewClient("api_key")
-	o := vt.NewObject("object_type")
-	err := c.PostObject(vt.URL("/collection"), o)
+	SetHost(ts.URL)
+	c := NewClient("api_key")
+	o := NewObject("object_type")
+	err := c.PostObject(URL("/collection"), o)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
@@ -253,14 +252,14 @@ func TestPatchObject(t *testing.T) {
 
 	defer patchServer.Close()
 
-	c := vt.NewClient("api_key")
+	c := NewClient("api_key")
 
-	vt.SetHost(getServer.URL)
-	o, err := c.GetObject(vt.URL("/collection/object_id"))
+	SetHost(getServer.URL)
+	o, err := c.GetObject(URL("/collection/object_id"))
 
-	vt.SetHost(patchServer.URL)
+	SetHost(patchServer.URL)
 	o.SetString("some_string", "world")
-	err = c.PatchObject(vt.URL("/collection/object_id"), o)
+	err = c.PatchObject(URL("/collection/object_id"), o)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
@@ -298,9 +297,9 @@ func TestIterator(t *testing.T) {
 
 	defer ts.Close()
 
-	vt.SetHost(ts.URL)
-	c := vt.NewClient("api_key")
-	it, err := c.Iterator(vt.URL("/collection"))
+	SetHost(ts.URL)
+	c := NewClient("api_key")
+	it, err := c.Iterator(URL("/collection"))
 
 	assert.NoError(t, err)
 	assert.NoError(t, it.Error())
@@ -333,9 +332,9 @@ func TestIteratorSingleObject(t *testing.T) {
 
 	defer ts.Close()
 
-	vt.SetHost(ts.URL)
-	c := vt.NewClient("api_key")
-	it, err := c.Iterator(vt.URL("/collection"))
+	SetHost(ts.URL)
+	c := NewClient("api_key")
+	it, err := c.Iterator(URL("/collection"))
 
 	assert.NoError(t, err)
 	assert.NoError(t, it.Error())
@@ -345,3 +344,4 @@ func TestIteratorSingleObject(t *testing.T) {
 	assert.False(t, it.Next())
 	assert.Equal(t, "", it.Cursor())
 }
+
