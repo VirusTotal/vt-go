@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/thedevsaddam/gojsonq"
+	gojsonq "github.com/thedevsaddam/gojsonq/v2"
 )
 
 // objectData is the structure that have the data returned by the API for an
