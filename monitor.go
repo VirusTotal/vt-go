@@ -58,7 +58,7 @@ func (s *MonitorUploader) upload(r io.Reader, params map[string]string, progress
 
 	w.Close()
 
-	if payloadSize > payloadMaxSize {
+	if payloadSize > maxPayloadSize {
 		// Payload is bigger than supported by AppEngine in a POST request,
 		// let's ask for an upload URL.
 		var u string

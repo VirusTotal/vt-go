@@ -29,7 +29,10 @@ const (
 )
 
 const (
-	payloadMaxSize = 30 * 1024 * 1024 // 30 MB
+	// Maximum size of payloads posted to VirusTotal's API endpoints.
+	maxPayloadSize = 30 * 1024 * 1024 // 30 MB
+	// Maximum file size that can scanned by VirusTotal.
+	maxFileSize = 650 * 1024 * 1024 // 650 MB
 )
 
 var baseURL = url.URL{
