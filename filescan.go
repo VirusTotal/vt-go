@@ -16,6 +16,7 @@ package vt
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/url"
