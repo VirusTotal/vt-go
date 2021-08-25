@@ -194,7 +194,6 @@ func TestGetObject(t *testing.T) {
 	assert.Equal(t, int64(317), o.MustGetInt64("some_int"))
 }
 
-
 func TestPostObject(t *testing.T) {
 
 	ts := NewTestServer(t).
@@ -256,6 +255,7 @@ func TestPatchObject(t *testing.T) {
 
 	SetHost(getServer.URL)
 	o, err := c.GetObject(URL("/collection/object_id"))
+	assert.NoError(t, err)
 
 	SetHost(patchServer.URL)
 	o.SetString("some_string", "world")
@@ -344,4 +344,3 @@ func TestIteratorSingleObject(t *testing.T) {
 	assert.False(t, it.Next())
 	assert.Equal(t, "", it.Cursor())
 }
-

@@ -61,8 +61,11 @@ func opts(opts ...RequestOption) *requestOptions {
 	return o
 }
 
+// ClientOption represents an option passed to NewClient.
 type ClientOption func(*Client)
 
+// WithHTTPClient allows to set the http.Client used by Client. If not specified
+// a default http.Client is used.
 func WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *Client) {
 		c.httpClient = httpClient
@@ -73,11 +76,9 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 // the provided API key.
 func NewClient(APIKey string, opts ...ClientOption) *Client {
 	c := &Client{APIKey: APIKey, httpClient: &http.Client{}}
-
 	for _, o := range opts {
 		o(c)
 	}
-
 	return c
 }
 
