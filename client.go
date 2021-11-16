@@ -170,7 +170,11 @@ func (cli *Client) Post(url *url.URL, req *Request, options ...RequestOption) (*
 			return nil, err
 		}
 	}
-	o := opts(options...)
+	// Default Content-Type header to application/json in POST requests.
+	defaultContentTypeOptions := append(
+		[]RequestOption{WithHeader("Content-Type", "application/json")},
+		options...)
+	o := opts(defaultContentTypeOptions...)
 	httpResp, err := cli.sendRequest("POST", url, bytes.NewReader(b), o.headers)
 	if err != nil {
 		return nil, err
@@ -189,7 +193,11 @@ func (cli *Client) Patch(url *url.URL, req *Request, options ...RequestOption) (
 			return nil, err
 		}
 	}
-	o := opts(options...)
+	// Default Content-Type header to application/json in PATCH requests.
+	defaultContentTypeOptions := append(
+		[]RequestOption{WithHeader("Content-Type", "application/json")},
+		options...)
+	o := opts(defaultContentTypeOptions...)
 	httpResp, err := cli.sendRequest("PATCH", url, bytes.NewReader(b), o.headers)
 	if err != nil {
 		return nil, err
