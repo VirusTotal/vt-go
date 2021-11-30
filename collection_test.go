@@ -7,7 +7,7 @@ import (
 )
 
 func TestCreateCollectionFromRawText(t *testing.T) {
-	expected := "{\"data\":{\"type\":\"collection\",\"attributes\":{\"name\":\"test collection\"},\"meta\":{\"raw\":\"hey www.example.com\"}}}"
+	expected := "{\"data\":{\"type\":\"collection\",\"attributes\":{\"name\":\"test collection\"},\"meta\":{\"raw\":\"www.example.com\"}}}"
 	ts := NewTestServer(t).
 		SetExpectedMethod("POST").
 		SetExpectedBody(expected).
@@ -29,10 +29,7 @@ func TestCreateCollectionFromRawText(t *testing.T) {
 	SetHost(ts.URL)
 	c := NewClient("api_key")
 
-	builder := NewCollectionBuilder(c)
-	builder.AddRawText("hey")
-	builder.AddRawText("www.example.com")
-	obj, err := builder.PostCollection("test collection")
+	obj, err := PostCollectionFromRawText(c, "test collection", "www.example.com")
 	assert.NoError(t, err)
 
 	val, err := obj.GetInt64("domains_count")
