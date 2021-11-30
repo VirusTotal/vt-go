@@ -31,6 +31,7 @@ type objectData struct {
 	ContextAttributes map[string]interface{}       `json:"context_attributes,omitempty"`
 	Relationships     map[string]*relationshipData `json:"relationships,omitempty"`
 	Links             *Links                       `json:"links,omitempty"`
+	Meta              map[string]interface{}       `json:"meta,omitempty"`
 }
 
 // Object represents a VirusTotal API object.
@@ -44,6 +45,10 @@ type Object struct {
 	// Contains a list the attributes that have been modified via a call to
 	// any of the SetXX methods.
 	modifiedAttributes []string
+
+	// Contains a list of meta-information that has been modified via a call
+	// to setMeta.
+	modifiedMeta map[string]interface{}
 }
 
 // Links contains links related to an API object.
@@ -453,6 +458,17 @@ func (obj *Object) SetTime(attr string, value time.Time) error {
 	return obj.Set(attr, value.Unix())
 }
 
+func (obj *Object) setMeta(key string, val interface{}) {
+	if obj.modifiedMeta == nil {
+		obj.modifiedMeta = map[string]interface{}{}
+	}
+	obj.modifiedMeta[key] = val
+	if obj.data.Meta == nil {
+		obj.data.Meta = map[string]interface{}{}
+	}
+	obj.data.Meta[key] = val
+}
+
 // GetRelationship returns a relationship by name. Only those relationships
 // that you explicitly asked for in a call to GetObject can be obtained. You
 // can ask by a relationship by including the "relationships" parameter in the
@@ -474,8 +490,8 @@ func (obj *Object) GetRelationship(name string) (*Relationship, error) {
 
 // modifiedObject is a structure exactly like Object, but that implements the
 // MarshalJSON interface differently. When a modifiedObject is marshalled as
-// JSON only the attributes that has been modified are included. Context
-// attributes, relationships and links are not included neither.
+// JSON only the attributes and meta-information that has been modified are
+// included. Context attributes, relationships and links are not included either.
 type modifiedObject Object
 
 func (obj modifiedObject) MarshalJSON() ([]byte, error) {
@@ -486,6 +502,13 @@ func (obj modifiedObject) MarshalJSON() ([]byte, error) {
 	}
 	for _, attr := range obj.modifiedAttributes {
 		od.Attributes[attr] = obj.data.Attributes[attr]
+	}
+	for k, v := range obj.modifiedMeta {
+		if od.Meta == nil {
+			od.Meta = make(map[string]interface{})
+		}
+		od.Meta[k] = v
+
 	}
 	return json.Marshal(&od)
 }
