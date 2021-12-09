@@ -6,6 +6,6 @@ func PostCollectionFromRawText(client *Client, name, text string) (*Object, erro
 	if err := obj.SetString("name", name); err != nil {
 		return obj, err
 	}
-	err := client.PostObject(URL("/collections"), obj)
+	err := client.PostObject(URL("collections"), obj)
 	return obj, err
 }
