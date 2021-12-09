@@ -7,7 +7,7 @@ import (
 )
 
 func TestCreateCollectionFromRawText(t *testing.T) {
-	expected := "{\"data\":{\"type\":\"collection\",\"attributes\":{\"name\":\"test collection\"},\"meta\":{\"raw\":\"www.example.com\"}}}"
+	expected := "{\"data\":{\"attributes\":{\"name\":\"test collection\"},\"raw_items\":\"www.example.com\",\"type\":\"collection\"}}"
 	ts := NewTestServer(t).
 		SetExpectedMethod("POST").
 		SetExpectedBody(expected).
