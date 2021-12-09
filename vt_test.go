@@ -113,9 +113,6 @@ func TestGetObject(t *testing.T) {
 						},
 					},
 				},
-				"meta": map[string]interface{}{
-					"some_bool": true,
-				},
 				"context_attributes": map[string]interface{}{
 					"some_int": 1,
 				},
