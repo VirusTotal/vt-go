@@ -4,11 +4,13 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func ExampleURL() {
@@ -27,6 +29,7 @@ type TestServer struct {
 	t              *testing.T
 	expectedMethod string
 	response       interface{}
+	expectedBody   string
 }
 
 func NewTestServer(t *testing.T) *TestServer {
@@ -45,11 +48,28 @@ func (ts *TestServer) SetResponse(r interface{}) *TestServer {
 	return ts
 }
 
+func (ts *TestServer) SetExpectedBody(body string) *TestServer {
+	ts.expectedBody = body
+	return ts
+}
+
 func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	if ts.expectedMethod != "" && ts.expectedMethod != r.Method {
 		ts.t.Errorf("Unexpected method, expecting %s, got %s",
 			ts.expectedMethod, r.Method)
 	}
+
+	if ts.expectedBody != "" {
+		data, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			ts.t.Errorf("Error reading request data")
+		}
+		if string(data) != ts.expectedBody {
+			ts.t.Errorf("Unexpected request body, expecting %s, got %s",
+				ts.expectedBody, string(data))
+		}
+	}
+
 	js, err := json.Marshal(ts.response)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
