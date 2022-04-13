@@ -240,6 +240,30 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOp
 	return cli.Post(url, req, options...)
 }
 
+// DeleteData sends a DELETE request to the specified API endpoint. The data argument
+// is JSON-encoded and wrapped as {'data': <JSON-encoded data>}.
+func (cli *Client) DeleteData(url *url.URL, data interface{}, options ...RequestOption) (*Response, error) {
+	req := &Request{}
+	req.Data = data
+
+	b, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Default Content-Type header to application/json in DELETE requests.
+	defaultContentTypeOptions := append(
+		[]RequestOption{WithHeader("Content-Type", "application/json")},
+		options...)
+	o := opts(defaultContentTypeOptions...)
+	httpResp, err := cli.sendRequest("DELETE", url, bytes.NewReader(b), o.headers)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResp.Body.Close()
+	return cli.parseResponse(httpResp)
+}
+
 // PostObject adds an Object to a collection. The specified URL must point to
 // a collection, not an object, but not all collections accept this operation.
 // For more information about collection and objects in the VirusTotal API see:
