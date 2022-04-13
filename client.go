@@ -207,21 +207,9 @@ func (cli *Client) Patch(url *url.URL, req *Request, options ...RequestOption) (
 }
 
 // Delete sends a DELETE request to the specified API endpoint.
-func (cli *Client) Delete(url *url.URL, req *Request, options ...RequestOption) (*Response, error) {
-	var b []byte
-	var err error
-	if req != nil {
-		b, err = json.Marshal(req)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// Default Content-Type header to application/json in DELETE requests.
-	defaultContentTypeOptions := append(
-		[]RequestOption{WithHeader("Content-Type", "application/json")},
-		options...)
-	o := opts(defaultContentTypeOptions...)
-	httpResp, err := cli.sendRequest("DELETE", url, bytes.NewReader(b), o.headers)
+func (cli *Client) Delete(url *url.URL, options ...RequestOption) (*Response, error) {
+	o := opts(options...)
+	httpResp, err := cli.sendRequest("DELETE", url, nil, o.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -253,11 +241,27 @@ func (cli *Client) PostData(url *url.URL, data interface{}, options ...RequestOp
 }
 
 // DeleteData sends a DELETE request to the specified API endpoint. The data argument
-// is JSON-encoded and wrapped as {'data': <JSON-encoded data> }.
+// is JSON-encoded and wrapped as {'data': <JSON-encoded data>}.
 func (cli *Client) DeleteData(url *url.URL, data interface{}, options ...RequestOption) (*Response, error) {
 	req := &Request{}
 	req.Data = data
-	return cli.Delete(url, req, options...)
+
+	b, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// Default Content-Type header to application/json in DELETE requests.
+	defaultContentTypeOptions := append(
+		[]RequestOption{WithHeader("Content-Type", "application/json")},
+		options...)
+	o := opts(defaultContentTypeOptions...)
+	httpResp, err := cli.sendRequest("DELETE", url, bytes.NewReader(b), o.headers)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResp.Body.Close()
+	return cli.parseResponse(httpResp)
 }
 
 // PostObject adds an Object to a collection. The specified URL must point to
