@@ -15,9 +15,9 @@ import (
 
 func ExampleURL() {
 	SetHost("https://www.virustotal.com")
-	url := URL("files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f")
+	url := MustURL("files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f")
 	fmt.Println(url)
-	url = URL("intelligence/retrohunt_jobs/%s", "1234567")
+	url = MustURL("intelligence/retrohunt_jobs/%s", "1234567")
 	fmt.Println(url)
 	// Output:
 	// https://www.virustotal.com/api/v3/files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
@@ -123,7 +123,7 @@ func TestGetObject(t *testing.T) {
 
 	SetHost(ts.URL)
 	c := NewClient("api_key")
-	o, err := c.GetObject(URL("/collection/object_id"))
+	o, err := c.GetObject(MustURL("/collection/object_id"))
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
@@ -233,7 +233,7 @@ func TestPostObject(t *testing.T) {
 	SetHost(ts.URL)
 	c := NewClient("api_key")
 	o := NewObject("object_type")
-	err := c.PostObject(URL("/collection"), o)
+	err := c.PostObject(MustURL("/collection"), o)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
@@ -274,12 +274,12 @@ func TestPatchObject(t *testing.T) {
 	c := NewClient("api_key")
 
 	SetHost(getServer.URL)
-	o, err := c.GetObject(URL("/collection/object_id"))
+	o, err := c.GetObject(MustURL("/collection/object_id"))
 	assert.NoError(t, err)
 
 	SetHost(patchServer.URL)
 	o.SetString("some_string", "world")
-	err = c.PatchObject(URL("/collection/object_id"), o)
+	err = c.PatchObject(MustURL("/collection/object_id"), o)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "object_id", o.ID())
@@ -319,7 +319,7 @@ func TestIterator(t *testing.T) {
 
 	SetHost(ts.URL)
 	c := NewClient("api_key")
-	it, err := c.Iterator(URL("/collection"))
+	it, err := c.Iterator(MustURL("/collection"))
 
 	assert.NoError(t, err)
 	assert.NoError(t, it.Error())
@@ -354,7 +354,7 @@ func TestIteratorSingleObject(t *testing.T) {
 
 	SetHost(ts.URL)
 	c := NewClient("api_key")
-	it, err := c.Iterator(URL("/collection"))
+	it, err := c.Iterator(MustURL("/collection"))
 
 	assert.NoError(t, err)
 	assert.NoError(t, it.Error())
