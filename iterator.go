@@ -311,6 +311,6 @@ loop:
 		skip = 0
 	}
 	it.closed = true
-	close(it.ch)
-	close(it.done)
+	defer close(it.ch)
+	defer close(it.done)
 }
