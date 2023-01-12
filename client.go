@@ -34,6 +34,8 @@ type Client struct {
 	// use some string that uniquely identify the program making the requests.
 	Agent      string
 	httpClient *http.Client
+	// Global headers used in all requests
+	headers map[string]string
 }
 
 type requestOptions struct {
@@ -72,6 +74,14 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
+// WithClientHeaders allows to set custom headers defined at client level, used
+// in all requests.
+func WithClientHeaders(headers map[string]string) ClientOption {
+	return func(c *Client) {
+		c.headers = headers
+	}
+}
+
 // NewClient creates a new client for interacting with the VirusTotal API using
 // the provided API key.
 func NewClient(APIKey string, opts ...ClientOption) *Client {
@@ -100,10 +110,16 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Apikey", cli.APIKey)
 
-	if headers != nil {
-		for k, v := range headers {
-			req.Header.Set(k, v)
+	if headers == nil {
+		headers = cli.headers
+	} else {
+		for k, v := range cli.headers {
+			headers[k] = v
 		}
+	}
+
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	return (cli.httpClient).Do(req)
@@ -275,12 +291,12 @@ func (cli *Client) DeleteData(url *url.URL, data interface{}, options ...Request
 // the object's attributes can differ from those it had before the call.
 //
 // Example:
+//
 //	obj := vt.NewObject("hunting_ruleset")
 //	obj.SetString("name", "test")
 //	obj.SetString("rules", "rule test {condition: false}")
 //
 //	client.PostObject(vt.URL("intelligence/hunting_rulesets"), obj)
-//
 func (cli *Client) PostObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
 	req.Data = modifiedObject(*obj)
@@ -342,28 +358,27 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 // iterating over a collection with a single object. Iterators are usually
 // used like this:
 //
-//  cli := vt.Client(<api key>)
-//  it, err := cli.Iterator(vt.URL(<collection path>))
-//  if err != nil {
-//	  ...handle error
-//  }
-//  defer it.Close()
-//  for it.Next() {
-//    obj := it.Get()
-//    ...do something with obj
-//  }
-//  if err := it.Error(); err != nil {
-//    ...handle error
-//  }
-//
+//	 cli := vt.Client(<api key>)
+//	 it, err := cli.Iterator(vt.URL(<collection path>))
+//	 if err != nil {
+//		  ...handle error
+//	 }
+//	 defer it.Close()
+//	 for it.Next() {
+//	   obj := it.Get()
+//	   ...do something with obj
+//	 }
+//	 if err := it.Error(); err != nil {
+//	   ...handle error
+//	 }
 func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error) {
 	return newIterator(cli, url, options...)
 }
 
 // Search for files using VirusTotal Intelligence query language.
 // Example:
-//   it, err := client.Search("p:10+ size:30MB+")
 //
+//	it, err := client.Search("p:10+ size:30MB+")
 func (cli *Client) Search(query string, options ...IteratorOption) (*Iterator, error) {
 	u := URL("intelligence/search")
 	q := u.Query()

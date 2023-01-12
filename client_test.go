@@ -13,3 +13,10 @@ func TestNewClientWithHTTPClientOption(t *testing.T) {
 		t.Fatalf("failed to set custom http")
 	}
 }
+
+func TestNewClientWithClientHeaders(t *testing.T) {
+	c := NewClient("api-key", WithClientHeaders(map[string]string{"foo": "bar"}))
+	if c.headers["foo"] != "bar" {
+		t.Fatalf("failed to set custom headers")
+	}
+}
