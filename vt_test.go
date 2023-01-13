@@ -26,10 +26,11 @@ func ExampleURL() {
 
 type TestServer struct {
 	*httptest.Server
-	t              *testing.T
-	expectedMethod string
-	response       interface{}
-	expectedBody   string
+	t               *testing.T
+	expectedMethod  string
+	response        interface{}
+	expectedBody    string
+	expectedHeaders map[string]string
 }
 
 func NewTestServer(t *testing.T) *TestServer {
@@ -53,6 +54,15 @@ func (ts *TestServer) SetExpectedBody(body string) *TestServer {
 	return ts
 }
 
+func (ts *TestServer) SetExpectedHeader(header, value string) *TestServer {
+	if ts.expectedHeaders == nil {
+		ts.expectedHeaders = map[string]string{header: value}
+	} else {
+		ts.expectedHeaders[header] = value
+	}
+	return ts
+}
+
 func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	if ts.expectedMethod != "" && ts.expectedMethod != r.Method {
 		ts.t.Errorf("Unexpected method, expecting %s, got %s",
@@ -67,6 +77,14 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 		if string(data) != ts.expectedBody {
 			ts.t.Errorf("Unexpected request body, expecting %s, got %s",
 				ts.expectedBody, string(data))
+		}
+	}
+
+	if ts.expectedHeaders != nil {
+		for k, v := range ts.expectedHeaders {
+			if r.Header.Get(k) != v {
+				ts.t.Errorf("Missing header '%s: %s' in request", k, v)
+			}
 		}
 	}
 
@@ -363,4 +381,51 @@ func TestIteratorSingleObject(t *testing.T) {
 	assert.Equal(t, "object_id", it.Get().ID())
 	assert.False(t, it.Next())
 	assert.Equal(t, "", it.Cursor())
+}
+
+func TestGlobalHeaders(t *testing.T) {
+
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetExpectedHeader("foo", "bar").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+				},
+			},
+		})
+
+	defer ts.Close()
+
+	SetHost(ts.URL)
+	c := NewClient("api_key", WithGlobalHeader("foo", "bar"))
+	_, err := c.GetObject(URL("files/275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"))
+	assert.NoError(t, err)
+}
+
+func TestRequestHeadersOverrideGlobalHeaders(t *testing.T) {
+
+	ts := NewTestServer(t).
+		SetExpectedMethod("POST").
+		SetExpectedHeader("Content-Type", "application/json").
+		SetResponse(map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "object_type",
+				"id":   "object_id",
+				"attributes": map[string]interface{}{
+					"some_string": "hello",
+				},
+			},
+		})
+
+	defer ts.Close()
+
+	SetHost(ts.URL)
+	c := NewClient("api_key", WithGlobalHeader("Content-Type", "bar"))
+	o := NewObject("object_type")
+	err := c.PostObject(URL("/collection"), o)
+	assert.NoError(t, err)
 }

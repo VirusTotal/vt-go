@@ -34,7 +34,9 @@ type Client struct {
 	// use some string that uniquely identify the program making the requests.
 	Agent      string
 	httpClient *http.Client
-	// Client headers used in all requests
+	// Global headers used in all requests. Those pased directly to request
+	// methods (Get, Post, ...) via RequestOption have preference and will
+	// override these global ones.
 	headers map[string]string
 }
 
@@ -45,7 +47,8 @@ type requestOptions struct {
 // RequestOption represents an option passed to some functions in this package.
 type RequestOption func(*requestOptions)
 
-// WithHeader specifies a header to be included in the request.
+// WithHeader specifies a header to be included in the request, it will override
+// any header defined at client level.
 func WithHeader(header, value string) RequestOption {
 	return func(opts *requestOptions) {
 		if opts.headers == nil {
@@ -74,11 +77,13 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
-// WithClientHeaders allows to set custom headers defined at client level, used
-// in all requests.
-func WithClientHeaders(headers map[string]string) ClientOption {
+// WithGlobalHeader specifies a global header to be included in the all the request.
+func WithGlobalHeader(header, value string) ClientOption {
 	return func(c *Client) {
-		c.headers = headers
+		if c.headers == nil {
+			c.headers = map[string]string{header: value}
+		}
+		c.headers[header] = value
 	}
 }
 
@@ -110,14 +115,12 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Apikey", cli.APIKey)
 
-	if headers == nil {
-		headers = cli.headers
-	} else {
-		for k, v := range cli.headers {
-			headers[k] = v
-		}
+	// Set global defined headers
+	for k, v := range cli.headers {
+		req.Header.Set(k, v)
 	}
 
+	// Set per request defined headers, override the global ones when collide.
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}

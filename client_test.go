@@ -15,8 +15,8 @@ func TestNewClientWithHTTPClientOption(t *testing.T) {
 }
 
 func TestNewClientWithClientHeaders(t *testing.T) {
-	c := NewClient("api-key", WithClientHeaders(map[string]string{"foo": "bar"}))
+	c := NewClient("api-key", WithGlobalHeader("foo", "bar"))
 	if c.headers["foo"] != "bar" {
-		t.Fatalf("failed to set client headers")
+		t.Fatalf("failed to set global header")
 	}
 }
