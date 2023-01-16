@@ -34,7 +34,7 @@ type Client struct {
 	// use some string that uniquely identify the program making the requests.
 	Agent      string
 	httpClient *http.Client
-	// Global headers used in all requests. Those pased directly to request
+	// Global headers used in all requests. Those passed directly to request
 	// methods (Get, Post, ...) via RequestOption have preference and will
 	// override these global ones.
 	headers map[string]string
