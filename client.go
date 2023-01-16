@@ -34,6 +34,10 @@ type Client struct {
 	// use some string that uniquely identify the program making the requests.
 	Agent      string
 	httpClient *http.Client
+	// Global headers used in all requests. Those passed directly to request
+	// methods (Get, Post, ...) via RequestOption have preference and will
+	// override these global ones.
+	headers map[string]string
 }
 
 type requestOptions struct {
@@ -43,7 +47,8 @@ type requestOptions struct {
 // RequestOption represents an option passed to some functions in this package.
 type RequestOption func(*requestOptions)
 
-// WithHeader specifies a header to be included in the request.
+// WithHeader specifies a header to be included in the request, it will override
+// any header defined at client level.
 func WithHeader(header, value string) RequestOption {
 	return func(opts *requestOptions) {
 		if opts.headers == nil {
@@ -69,6 +74,16 @@ type ClientOption func(*Client)
 func WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *Client) {
 		c.httpClient = httpClient
+	}
+}
+
+// WithGlobalHeader specifies a global header to be included in the all the requests.
+func WithGlobalHeader(header, value string) ClientOption {
+	return func(c *Client) {
+		if c.headers == nil {
+			c.headers = map[string]string{header: value}
+		}
+		c.headers[header] = value
 	}
 }
 
@@ -100,10 +115,14 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("X-Apikey", cli.APIKey)
 
-	if headers != nil {
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
+	// Set global defined headers
+	for k, v := range cli.headers {
+		req.Header.Set(k, v)
+	}
+
+	// Set per request defined headers, override the global ones when collide.
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	return (cli.httpClient).Do(req)
@@ -275,12 +294,12 @@ func (cli *Client) DeleteData(url *url.URL, data interface{}, options ...Request
 // the object's attributes can differ from those it had before the call.
 //
 // Example:
+//
 //	obj := vt.NewObject("hunting_ruleset")
 //	obj.SetString("name", "test")
 //	obj.SetString("rules", "rule test {condition: false}")
 //
 //	client.PostObject(vt.URL("intelligence/hunting_rulesets"), obj)
-//
 func (cli *Client) PostObject(url *url.URL, obj *Object, options ...RequestOption) error {
 	req := &Request{}
 	req.Data = modifiedObject(*obj)
@@ -342,28 +361,27 @@ func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
 // iterating over a collection with a single object. Iterators are usually
 // used like this:
 //
-//  cli := vt.Client(<api key>)
-//  it, err := cli.Iterator(vt.URL(<collection path>))
-//  if err != nil {
-//	  ...handle error
-//  }
-//  defer it.Close()
-//  for it.Next() {
-//    obj := it.Get()
-//    ...do something with obj
-//  }
-//  if err := it.Error(); err != nil {
-//    ...handle error
-//  }
-//
+//	 cli := vt.Client(<api key>)
+//	 it, err := cli.Iterator(vt.URL(<collection path>))
+//	 if err != nil {
+//		  ...handle error
+//	 }
+//	 defer it.Close()
+//	 for it.Next() {
+//	   obj := it.Get()
+//	   ...do something with obj
+//	 }
+//	 if err := it.Error(); err != nil {
+//	   ...handle error
+//	 }
 func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error) {
 	return newIterator(cli, url, options...)
 }
 
 // Search for files using VirusTotal Intelligence query language.
 // Example:
-//   it, err := client.Search("p:10+ size:30MB+")
 //
+//	it, err := client.Search("p:10+ size:30MB+")
 func (cli *Client) Search(query string, options ...IteratorOption) (*Iterator, error) {
 	u := URL("intelligence/search")
 	q := u.Query()
