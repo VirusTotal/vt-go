@@ -77,7 +77,7 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
-// WithGlobalHeader specifies a global header to be included in the all the request.
+// WithGlobalHeader specifies a global header to be included in the all the requests.
 func WithGlobalHeader(header, value string) ClientOption {
 	return func(c *Client) {
 		if c.headers == nil {
