@@ -117,6 +117,11 @@ func (obj *Object) Relationships() []string {
 	return result
 }
 
+// Links returns the object's links.
+func (obj *Object) Links() *Links {
+	return obj.data.Links
+}
+
 // MarshalJSON marshals a VirusTotal API object.
 func (obj *Object) MarshalJSON() ([]byte, error) {
 	return json.Marshal(obj.data)
