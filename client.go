@@ -24,6 +24,33 @@ import (
 	"strings"
 )
 
+type requestOptions struct {
+	headers map[string]string
+}
+
+// RequestOption represents an option passed to some functions in this package.
+type RequestOption func(*requestOptions)
+
+type VTClient interface {
+	Get(url *url.URL, options ...RequestOption) (*Response, error)
+	Post(url *url.URL, req *Request, options ...RequestOption) (*Response, error)
+	Patch(url *url.URL, req *Request, options ...RequestOption) (*Response, error)
+	Delete(url *url.URL, options ...RequestOption) (*Response, error)
+	GetData(url *url.URL, target interface{}, options ...RequestOption) (*Response, error)
+	PostData(url *url.URL, data interface{}, options ...RequestOption) (*Response, error)
+	DeleteData(url *url.URL, data interface{}, options ...RequestOption) (*Response, error)
+	PostObject(url *url.URL, obj *Object, options ...RequestOption) error
+	GetObject(url *url.URL, options ...RequestOption) (*Object, error)
+	PatchObject(url *url.URL, obj *Object, options ...RequestOption) error
+	DownloadFile(hash string, w io.Writer) (int64, error)
+	Iterator(url *url.URL, options ...IteratorOption) (*Iterator, error)
+	Search(query string, options ...IteratorOption) (*Iterator, error)
+	GetMetadata() (*Metadata, error)
+	NewFileScanner() *FileScanner
+	NewURLScanner() *URLScanner
+	NewMonitorUploader() *MonitorUploader
+}
+
 // Client for interacting with VirusTotal API.
 type Client struct {
 	// APIKey is the VirusTotal API key that identifies the user making the
@@ -39,13 +66,6 @@ type Client struct {
 	// override these global ones.
 	headers map[string]string
 }
-
-type requestOptions struct {
-	headers map[string]string
-}
-
-// RequestOption represents an option passed to some functions in this package.
-type RequestOption func(*requestOptions)
 
 // WithHeader specifies a header to be included in the request, it will override
 // any header defined at client level.
