@@ -129,7 +129,7 @@ func (s *FileScanner) ScanParameters(
 }
 
 // ScanFileWithParameters sends a file to VirusTotal for scanning. This function
-// is similar to ScanWithParameters but it receive an *os.File instead of a
+// is similar to ScanWithParameters but it receives an *os.File instead of a
 // io.Reader and a file name.
 func (s *FileScanner) ScanFileWithParameters(
 	f *os.File, progress chan<- float32, parameters map[string]string) (*Object, error) {
