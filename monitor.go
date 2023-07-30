@@ -62,14 +62,14 @@ func (s *MonitorUploader) upload(r io.Reader, params map[string]string, progress
 		// Payload is bigger than supported by AppEngine in a POST request,
 		// let's ask for an upload URL.
 		var u string
-		if _, err := s.cli.GetData(URL("monitor/items/upload_url"), &u); err != nil {
+		if _, err := s.cli.GetData(MustURL("monitor/items/upload_url"), &u); err != nil {
 			return nil, err
 		}
 		if uploadURL, err = url.Parse(u); err != nil {
 			return nil, err
 		}
 	} else {
-		uploadURL = URL("monitor/items")
+		uploadURL = MustURL("monitor/items")
 	}
 
 	pr := &progressReader{

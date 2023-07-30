@@ -64,20 +64,40 @@ func (e Error) Error() string {
 	return e.Message
 }
 
+// NewURL returns a full VirusTotal API URL from a relative path (i.e: a path
+// without the domain name and the "/api/v3/" prefix). The path can contain
+// format 'verbs' as defined in the "fmt". This function is useful for creating
+// URLs to be passed to any function expecting a *url.URL in this library.
+func NewURL(pathFmt string, a ...interface{}) (*url.URL, error) {
+	path := fmt.Sprintf(pathFmt, a...)
+	url, err := url.Parse(path)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"error formatting URL \"%s\": %s",
+			pathFmt, err)
+	}
+	return baseURL.ResolveReference(url), nil
+}
+
+// MustURL returns a full VirusTotal API URL from a relative path (i.e: a path
+// without the domain name and the "/api/v3/" prefix). The path can contain
+// format 'verbs' as defined in the "fmt". This function is useful for creating
+// URLs to be passed to any function expecting a *url.URL in this library.
+func MustURL(pathFmt string, a ...interface{}) *url.URL {
+	url, err := NewURL(pathFmt, a...)
+	if err != nil {
+		panic(err.Error())
+	}
+	return url, nil
+}
+
 // URL returns a full VirusTotal API URL from a relative path (i.e: a path
 // without the domain name and the "/api/v3/" prefix). The path can contain
 // format 'verbs' as defined in the "fmt". This function is useful for creating
 // URLs to be passed to any function expecting a *url.URL in this library.
+// Deprecated: Use NewURL or MustURL instead.
 func URL(pathFmt string, a ...interface{}) *url.URL {
-	path := fmt.Sprintf(pathFmt, a...)
-	url, err := url.Parse(path)
-	if err != nil {
-		msg := fmt.Sprintf(
-			"error formatting URL \"%s\": %s",
-			pathFmt, err)
-		panic(msg)
-	}
-	return baseURL.ResolveReference(url)
+	return MustURL(pathFmt, a...)
 }
 
 // SetHost allows to change the host used while sending requests to the

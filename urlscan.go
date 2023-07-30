@@ -44,7 +44,7 @@ func (s *URLScanner) Scan(url string) (*Object, error) {
 
 	headers := map[string]string{"Content-Type": w.FormDataContentType()}
 
-	httpResp, err := s.cli.sendRequest("POST", URL("urls"), &b, headers)
+	httpResp, err := s.cli.sendRequest("POST", MustURL("urls"), &b, headers)
 	if err != nil {
 		return nil, err
 	}

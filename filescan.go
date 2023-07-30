@@ -79,14 +79,14 @@ func (s *FileScanner) scanWithParameters(
 		// Payload is bigger than supported by AppEngine in a POST request,
 		// let's ask for an upload URL.
 		var u string
-		if _, err := s.cli.GetData(URL("files/upload_url"), &u); err != nil {
+		if _, err := s.cli.GetData(MustURL("files/upload_url"), &u); err != nil {
 			return nil, err
 		}
 		if uploadURL, err = url.Parse(u); err != nil {
 			return nil, err
 		}
 	} else {
-		uploadURL = URL("files")
+		uploadURL = MustURL("files")
 	}
 
 	pr := &progressReader{
