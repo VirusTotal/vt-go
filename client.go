@@ -168,7 +168,7 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 	}
 
 	var reader io.ReadCloser
-	if strings.Compare(resp.Header.Get("Content-Encoding"), "gzip") == 0 {
+	if resp.Header.Get("Content-Encoding") == "gzip" {
 		// Prepare gzip reader for uncompressing gzipped JSON response
 		ungzipper, err := gzip.NewReader(resp.Body)
 		if err != nil {
