@@ -3,6 +3,7 @@ package vt
 import (
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -30,6 +31,7 @@ type TestServer struct {
 	expectedMethod  string
 	response        interface{}
 	expectedBody    string
+	status          int
 	expectedHeaders map[string]string
 }
 
@@ -46,6 +48,11 @@ func (ts *TestServer) SetExpectedMethod(m string) *TestServer {
 
 func (ts *TestServer) SetResponse(r interface{}) *TestServer {
 	ts.response = r
+	return ts
+}
+
+func (ts *TestServer) SetStatusCode(s int) *TestServer {
+	ts.status = s
 	return ts
 }
 
@@ -94,9 +101,17 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	gw := gzip.NewWriter(w)
-	gw.Write(js)
-	gw.Close()
+	if ts.status != 0 {
+		w.WriteHeader(ts.status)
+	}
+	if ts.status != 429 {
+		w.Header().Set("content-encoding", "gzip")
+		gw := gzip.NewWriter(w)
+		gw.Write(js)
+		gw.Close()
+	} else {
+		w.Write(js)
+	}
 }
 
 // This tests GET request with passing in a parameter.
@@ -428,4 +443,28 @@ func TestRequestHeadersOverrideGlobalHeaders(t *testing.T) {
 	o := NewObject("object_type")
 	err := c.PostObject(URL("/collection"), o)
 	assert.NoError(t, err)
+}
+
+func TestGetObjectOutOfQuota(t *testing.T) {
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetStatusCode(429).
+		SetResponse(map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "QuotaExceededError",
+				"message": "Quota exceeded",
+			},
+		})
+
+	defer ts.Close()
+
+	SetHost(ts.URL)
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abcabcabcabcabc"))
+	if err != nil {
+		var vtErr *Error
+		if !errors.As(err, &vtErr) && err.(Error).Code != "QuotaExceededError" {
+			t.Fatalf("Error getting object from VT: %s", err)
+		}
+	}
 }

@@ -167,14 +167,20 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 			resp.Request.Method, resp.Request.URL.String())
 	}
 
-	// Prepare gzip reader for uncompressing gzipped JSON response
-	ungzipper, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, err
+	var reader io.ReadCloser
+	if strings.Compare(resp.Header.Get("Content-Encoding"), "gzip") == 0 {
+		// Prepare gzip reader for uncompressing gzipped JSON response
+		ungzipper, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer ungzipper.Close()
+		reader = ungzipper
+	} else {
+		reader = resp.Body
 	}
-	defer ungzipper.Close()
 
-	if err := json.NewDecoder(ungzipper).Decode(apiresp); err != nil {
+	if err := json.NewDecoder(reader).Decode(apiresp); err != nil {
 		return nil, err
 	}
 
