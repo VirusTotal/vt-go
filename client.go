@@ -313,8 +313,8 @@ func (cli *Client) DeleteData(url *url.URL, data interface{}, options ...Request
 // a collection, not an object, but not all collections accept this operation.
 // For more information about collection and objects in the VirusTotal API see:
 //
-// https://developers.virustotal.com/v3.0/reference#objects
-// https://developers.virustotal.com/v3.0/reference#collections
+// https://docs.virustotal.com/reference/objects
+// https://docs.virustotal.com/reference/collections
 //
 // This function updates the object with data returned from the server, so
 // the object's attributes can differ from those it had before the call.
