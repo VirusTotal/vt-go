@@ -362,7 +362,7 @@ func (cli *Client) PatchObject(url *url.URL, obj *Object, options ...RequestOpti
 // DownloadFile downloads a file given its hash (SHA-256, SHA-1 or MD5). The
 // file is written into the provided io.Writer.
 func (cli *Client) DownloadFile(hash string, w io.Writer) (int64, error) {
-	u := URL("files/%s/download", hash)
+	u := MustURL("files/%s/download", hash)
 	resp, err := cli.sendRequest("GET", u, nil, nil)
 	if err != nil {
 		return 0, err
@@ -409,7 +409,7 @@ func (cli *Client) Iterator(url *url.URL, options ...IteratorOption) (*Iterator,
 //
 //	it, err := client.Search("p:10+ size:30MB+")
 func (cli *Client) Search(query string, options ...IteratorOption) (*Iterator, error) {
-	u := URL("intelligence/search")
+	u := MustURL("intelligence/search")
 	q := u.Query()
 	q.Add("query", query)
 	u.RawQuery = q.Encode()
@@ -443,7 +443,7 @@ type RelationshipMeta struct {
 // endpoint.
 func (cli *Client) GetMetadata() (*Metadata, error) {
 	metadata := &Metadata{}
-	if _, err := cli.GetData(URL("metadata"), metadata); err != nil {
+	if _, err := cli.GetData(MustURL("metadata"), metadata); err != nil {
 		return nil, err
 	}
 	return metadata, nil

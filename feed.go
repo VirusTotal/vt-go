@@ -175,7 +175,7 @@ var errNotFound = errors.New("not found")
 
 func (f *Feed) getObjects(packageTime string) ([]*Object, error) {
 
-	u := URL("feeds/%s/%s", f.feedType, packageTime)
+	u := MustURL("feeds/%s/%s", f.feedType, packageTime)
 
 	httpResp, err := f.client.sendRequest("GET", u, nil, nil)
 	if err != nil {
