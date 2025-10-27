@@ -21,6 +21,7 @@ import (
 	"mime/multipart"
 	"net/url"
 	"os"
+	"strings"
 )
 
 type progressReader struct {
@@ -46,40 +47,76 @@ type FileScanner struct {
 
 func (s *FileScanner) scanWithParameters(
 	r io.Reader, filename string, progress chan<- float32, parameters map[string]string) (*Object, error) {
-	var uploadURL *url.URL
-	var payloadSize int64
 
-	b := bytes.Buffer{}
+	// File size is initially unknown.
+	fileSize := int64(-1)
 
-	// Create multipart writer for the file
-	w := multipart.NewWriter(&b)
-	f, err := w.CreateFormFile("file", filename)
-	if err != nil {
-		return nil, err
+	// Try to determine the size of the file being uploaded.
+	switch v := r.(type) {
+	case *os.File:
+		if stat, err := v.Stat(); err == nil {
+			fileSize = stat.Size()
+		}
+	case *bytes.Buffer:
+		fileSize = int64(v.Len())
+	case *bytes.Reader:
+		fileSize = int64(v.Len())
+	case *strings.Reader:
+		fileSize = int64(v.Len())
+	default:
 	}
 
-	// Copy data from input stream to the multiparted file
-	if payloadSize, err = io.Copy(f, r); err != nil {
-		return nil, err
+	// If the size was not determined by other means, read the entire
+	// content into a buffer to determine the size.
+	if fileSize == -1 {
+		b := bytes.Buffer{}
+		io.Copy(&b, r)
+		fileSize = int64(b.Len())
+		r = &b
 	}
 
-	if parameters != nil {
+	pipeReader, pipeWriter := io.Pipe()
+	multipartWriter := multipart.NewWriter(pipeWriter)
+
+	// Read data from the input reader `r`, and write it into the multipart
+	// writer in a separate goroutine using a pipe. Data is read from `r`
+	// only as requested by the HTTP client to avoid loading all the data
+	// into memory.
+	go func() {
+		defer pipeWriter.Close()
+		defer multipartWriter.Close()
+
+		f, err := multipartWriter.CreateFormFile("file", filename)
+		if err != nil {
+			pipeWriter.CloseWithError(err)
+			return
+		}
+
+		if _, err := io.Copy(f, r); err != nil {
+			pipeWriter.CloseWithError(err)
+			return
+		}
+
 		for key, val := range parameters {
-			if err := w.WriteField(key, val); err != nil {
-				return nil, err
+			if err := multipartWriter.WriteField(key, val); err != nil {
+				pipeWriter.CloseWithError(err)
+				return
 			}
 		}
-	}
+	}()
 
-	w.Close()
+	var uploadURL *url.URL
+	var err error
 
-	if payloadSize > maxFileSize {
+	// Choose upload URL based on the file size. If the size is known and less
+	// than maxPayloadSize, we can upload directly to /files. If the size is
+	// unknown or larger than maxPayloadSize, we need to request an upload URL
+	// first. If the size is larger than maxFileSize, we return an error.
+	if fileSize > maxFileSize {
 		return nil, fmt.Errorf("file size can't be larger than %d bytes", maxFileSize)
-	} else if payloadSize > maxPayloadSize {
-		// Payload is bigger than supported by AppEngine in a POST request,
-		// let's ask for an upload URL.
+	} else if fileSize > maxPayloadSize {
 		var u string
-		if _, err := s.cli.GetData(URL("files/upload_url"), &u); err != nil {
+		if _, err = s.cli.GetData(URL("files/upload_url"), &u); err != nil {
 			return nil, err
 		}
 		if uploadURL, err = url.Parse(u); err != nil {
@@ -89,14 +126,14 @@ func (s *FileScanner) scanWithParameters(
 		uploadURL = URL("files")
 	}
 
-	pr := &progressReader{
-		reader:     &b,
-		total:      int64(b.Len()),
+	progressReader := &progressReader{
+		reader:     pipeReader,
+		total:      fileSize,
 		progressCh: progress}
 
-	headers := map[string]string{"Content-Type": w.FormDataContentType()}
+	headers := map[string]string{"Content-Type": multipartWriter.FormDataContentType()}
 
-	httpResp, err := s.cli.sendRequest("POST", uploadURL, pr, headers)
+	httpResp, err := s.cli.sendRequest("POST", uploadURL, progressReader, headers)
 	if err != nil {
 		return nil, err
 	}
