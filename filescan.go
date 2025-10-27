@@ -152,7 +152,16 @@ func (s *FileScanner) scanWithParameters(
 	return analysis, nil
 }
 
-// ScanParameters sends a file to VirusTotal for scanning. The file content is
+// Deprecated: Use ScanWithParameters instead.
+//
+// This function is kept for backward compatibility, but for cohereence with
+// the rest of the library is has been renamed to ScanWithParameters.
+func (s *FileScanner) ScanParameters(
+	r io.Reader, filename string, progress chan<- float32, parameters map[string]string) (*Object, error) {
+	return s.scanWithParameters(r, filename, progress, parameters)
+}
+
+// ScanWithParameters sends a file to VirusTotal for scanning. The file content is
 // read from the r io.Reader and sent to VirusTotal with the provided file name
 // which can be left blank. The function also sends a float32 through the
 // progress channel indicating the percentage of the file that has been already
@@ -160,7 +169,7 @@ func (s *FileScanner) scanWithParameters(
 // receiving upload progress updates. An analysis object is returned as soon as
 // the file is uploaded. Additional parameters can be passed to the scan
 // by using the parameters map[string]string argument.
-func (s *FileScanner) ScanParameters(
+func (s *FileScanner) ScanWithParameters(
 	r io.Reader, filename string, progress chan<- float32, parameters map[string]string) (*Object, error) {
 	return s.scanWithParameters(r, filename, progress, parameters)
 }
