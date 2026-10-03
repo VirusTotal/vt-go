@@ -517,3 +517,126 @@ func TestParseRetryAfter(t *testing.T) {
 	past := time.Now().Add(-time.Minute).UTC().Format(http.TimeFormat)
 	assert.Equal(t, time.Duration(0), parseRetryAfter(past))
 }
+
+func quotaExceededResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    "QuotaExceededError",
+			"message": "Quota exceeded",
+		},
+	}
+}
+
+// countingServer answers with the given handlers in order (repeating the last
+// one) and counts the requests received.
+func countingServer(t *testing.T, handlers ...http.HandlerFunc) (*httptest.Server, *int) {
+	n := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		i := n
+		if i >= len(handlers) {
+			i = len(handlers) - 1
+		}
+		n++
+		handlers[i](w, r)
+	}))
+	return ts, &n
+}
+
+func respond(status int, retryAfter string, body interface{}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		w.WriteHeader(status)
+		js, _ := json.Marshal(body)
+		w.Write(js)
+	}
+}
+
+func TestRetryOnShortRetryAfter(t *testing.T) {
+	ts, n := countingServer(t,
+		respond(429, "0", quotaExceededResponse()),
+		respond(200, "", map[string]interface{}{
+			"data": map[string]interface{}{"type": "file", "id": "abc"},
+		}))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	obj, err := c.GetObject(URL("files/abc"))
+	assert.NoError(t, err)
+	assert.Equal(t, "abc", obj.ID())
+	assert.Equal(t, 2, *n)
+}
+
+func TestRetriesAreBounded(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "0", quotaExceededResponse()))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abc"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	// The first attempt plus 2 retries.
+	assert.Equal(t, 3, *n)
+}
+
+func TestFailFastOnLongRetryAfter(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "3600", quotaExceededResponse()))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abc"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, 3600*time.Second, vtErr.RetryAfter)
+	assert.Equal(t, 1, *n)
+
+	// The same endpoint family now fails without reaching the API.
+	_, err = c.GetObject(URL("files/def/relationships"))
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.True(t, vtErr.RetryAfter > 3590*time.Second)
+	assert.Equal(t, 1, *n)
+
+	// Other endpoint families still reach the API.
+	c.GetObject(URL("urls/abc"))
+	assert.Equal(t, 2, *n)
+}
+
+func TestFailFastCanBeDisabled(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "3600", quotaExceededResponse()))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey", WithQuotaFailFast(false))
+	c.GetObject(URL("files/abc"))
+	c.GetObject(URL("files/abc"))
+	assert.Equal(t, 2, *n)
+}
+
+func TestFailFastBlockExpires(t *testing.T) {
+	ts, n := countingServer(t, respond(200, "", map[string]interface{}{
+		"data": map[string]interface{}{"type": "file", "id": "abc"},
+	}))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	c.block(URL("files/abc"), -time.Second)
+	_, err := c.GetObject(URL("files/abc"))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, *n)
+}
+
+func TestRateLimitScope(t *testing.T) {
+	SetHost("https://www.virustotal.com")
+	assert.Equal(t, "/files", rateLimitScope(URL("files/abc")))
+	assert.Equal(t, "/files", rateLimitScope(URL("files/abc/relationships")))
+	assert.Equal(t, "/intelligence/search", rateLimitScope(URL("intelligence/search")))
+	assert.Equal(t, "/monitor/items", rateLimitScope(URL("monitor/items/x")))
+}

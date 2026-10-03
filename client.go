@@ -19,10 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -67,6 +70,15 @@ type Client struct {
 	// methods (Get, Post, ...) via RequestOption have preference and will
 	// override these global ones.
 	headers map[string]string
+	// Retry and fail-fast behaviour for 429 responses, see WithMaxRetries,
+	// WithMaxRetryWait and WithQuotaFailFast.
+	maxRetries    int
+	maxRetryWait  time.Duration
+	quotaFailFast bool
+	// blockedUntil maps endpoint families to the time until which requests to
+	// them fail locally because a quota is exhausted.
+	blockedMu    sync.Mutex
+	blockedUntil map[string]time.Time
 }
 
 // WithHeader specifies a header to be included in the request, it will override
@@ -109,18 +121,158 @@ func WithGlobalHeader(header, value string) ClientOption {
 	}
 }
 
+// WithMaxRetries sets how many times a request answered with 429 is retried
+// when the server asks to wait at most the duration set by WithMaxRetryWait.
+// The default is 2. Use 0 for disabling retries.
+func WithMaxRetries(n int) ClientOption {
+	return func(c *Client) {
+		c.maxRetries = n
+	}
+}
+
+// WithMaxRetryWait sets the longest Retry-After the client waits for before
+// retrying a request answered with 429. The default is 60 seconds.
+func WithMaxRetryWait(d time.Duration) ClientOption {
+	return func(c *Client) {
+		c.maxRetryWait = d
+	}
+}
+
+// WithQuotaFailFast enables or disables failing locally while a quota is
+// exhausted. When enabled (the default) and the server answers 429 with a
+// Retry-After longer than the one set by WithMaxRetryWait, further requests to
+// the same endpoint family return the same error without reaching the API
+// until that time has passed.
+func WithQuotaFailFast(enabled bool) ClientOption {
+	return func(c *Client) {
+		c.quotaFailFast = enabled
+	}
+}
+
 // NewClient creates a new client for interacting with the VirusTotal API using
 // the provided API key.
 func NewClient(APIKey string, opts ...ClientOption) *Client {
-	c := &Client{APIKey: APIKey, httpClient: &http.Client{}}
+	c := &Client{
+		APIKey:        APIKey,
+		httpClient:    &http.Client{},
+		maxRetries:    2,
+		maxRetryWait:  60 * time.Second,
+		quotaFailFast: true,
+	}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
 }
 
-// sendRequest sends a HTTP request to the VirusTotal REST API.
+// twoSegmentScopes are endpoint families with their own quotas, identified by
+// their first two path segments instead of just the first one.
+var twoSegmentScopes = map[string]bool{
+	"intelligence": true,
+	"monitor":      true,
+	"private":      true,
+	"feeds":        true,
+}
+
+// rateLimitScope returns the endpoint family a URL belongs to, e.g. "/files".
+// Quota blocks are remembered per endpoint family, so that exhausting one
+// quota (e.g. Intelligence searches) doesn't block unrelated endpoints.
+func rateLimitScope(u *url.URL) string {
+	path := strings.TrimPrefix(u.Path, "/"+strings.Trim(baseURL.Path, "/"))
+	var parts []string
+	for _, part := range strings.Split(path, "/") {
+		if part != "" {
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return "/"
+	}
+	if twoSegmentScopes[parts[0]] && len(parts) > 1 {
+		return "/" + parts[0] + "/" + parts[1]
+	}
+	return "/" + parts[0]
+}
+
+// checkBlocked returns a QuotaExceededError if the endpoint family of the
+// given URL is blocked because a quota is exhausted.
+func (cli *Client) checkBlocked(u *url.URL) error {
+	scope := rateLimitScope(u)
+	cli.blockedMu.Lock()
+	defer cli.blockedMu.Unlock()
+	until, ok := cli.blockedUntil[scope]
+	if !ok {
+		return nil
+	}
+	remaining := time.Until(until)
+	if remaining <= 0 {
+		delete(cli.blockedUntil, scope)
+		return nil
+	}
+	return Error{
+		Code: "QuotaExceededError",
+		Message: fmt.Sprintf(
+			"Quota exceeded for %s endpoints, retry in %s (raised by the client "+
+				"without contacting the API)", scope, remaining.Round(time.Second)),
+		RetryAfter: remaining,
+	}
+}
+
+func (cli *Client) block(u *url.URL, d time.Duration) {
+	cli.blockedMu.Lock()
+	defer cli.blockedMu.Unlock()
+	if cli.blockedUntil == nil {
+		cli.blockedUntil = map[string]time.Time{}
+	}
+	cli.blockedUntil[rateLimitScope(u)] = time.Now().Add(d)
+}
+
+// sendRequest sends a HTTP request to the VirusTotal REST API, honoring
+// Retry-After on 429 responses. A 429 means the request was not processed, so
+// retrying is safe even for POST requests. Requests whose body can't be
+// re-sent (e.g. streamed uploads) are not retried.
 func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Response, error) {
+	if err := cli.checkBlocked(url); err != nil {
+		return nil, err
+	}
+	req, err := cli.newRequest(method, url, body, headers)
+	if err != nil {
+		return nil, err
+	}
+	retryable := body == nil || req.GetBody != nil
+	for attempt := 0; ; attempt++ {
+		resp, err := (cli.httpClient).Do(req)
+		if err != nil || resp.StatusCode != http.StatusTooManyRequests {
+			return resp, err
+		}
+		retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
+		if retryAfter > cli.maxRetryWait {
+			if cli.quotaFailFast {
+				cli.block(url, retryAfter)
+			}
+			return resp, nil
+		}
+		if !retryable || attempt >= cli.maxRetries {
+			return resp, nil
+		}
+		if resp.Header.Get("Retry-After") == "" {
+			// Exponential backoff with jitter: ~1s, ~2s, ~4s...
+			retryAfter = time.Duration(
+				float64(time.Second<<attempt) * (0.5 + rand.Float64()/2))
+		}
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+		time.Sleep(retryAfter)
+		if req.GetBody != nil {
+			if req.Body, err = req.GetBody(); err != nil {
+				return nil, err
+			}
+		}
+	}
+}
+
+// newRequest builds a HTTP request to the VirusTotal REST API.
+func (cli *Client) newRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Request, error) {
 	req, err := http.NewRequest(method, url.String(), body)
 	if err != nil {
 		return nil, err
@@ -147,7 +299,7 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 		req.Header.Set(k, v)
 	}
 
-	return (cli.httpClient).Do(req)
+	return req, nil
 }
 
 // parseRetryAfter parses the value of a Retry-After header, which can be
