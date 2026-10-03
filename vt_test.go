@@ -640,3 +640,24 @@ func TestRateLimitScope(t *testing.T) {
 	assert.Equal(t, "/intelligence/search", rateLimitScope(URL("intelligence/search")))
 	assert.Equal(t, "/monitor/items", rateLimitScope(URL("monitor/items/x")))
 }
+
+func TestBlockedScopesAreBounded(t *testing.T) {
+	SetHost("https://www.virustotal.com")
+	defer func(n int) { maxBlockedScopes = n }(maxBlockedScopes)
+	maxBlockedScopes = 3
+
+	c := NewClient("apikey")
+	c.block(URL("a"), -time.Second) // already expired
+	c.block(URL("b"), time.Hour)
+	c.block(URL("c"), time.Hour)
+	// "/a" is expired and dropped.
+	assert.Len(t, c.blockedUntil, 2)
+
+	c.block(URL("d"), time.Minute)
+	// The limit is reached: the block expiring first ("/d") is evicted.
+	c.block(URL("e"), time.Hour)
+	assert.Len(t, c.blockedUntil, 3)
+	_, ok := c.blockedUntil["/d"]
+	assert.False(t, ok)
+}
+

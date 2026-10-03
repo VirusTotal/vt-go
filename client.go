@@ -218,13 +218,36 @@ func (cli *Client) checkBlocked(u *url.URL) error {
 	}
 }
 
+// maxBlockedScopes is an upper bound for the number of blocked endpoint
+// families remembered by a client. Families are a small fixed set (one per API
+// route family), so this is just a safeguard against unbounded growth.
+var maxBlockedScopes = 256
+
 func (cli *Client) block(u *url.URL, d time.Duration) {
 	cli.blockedMu.Lock()
 	defer cli.blockedMu.Unlock()
 	if cli.blockedUntil == nil {
 		cli.blockedUntil = map[string]time.Time{}
 	}
-	cli.blockedUntil[rateLimitScope(u)] = time.Now().Add(d)
+	now := time.Now()
+	// Drop expired blocks so that the map only holds active ones.
+	for scope, until := range cli.blockedUntil {
+		if !until.After(now) {
+			delete(cli.blockedUntil, scope)
+		}
+	}
+	scope := rateLimitScope(u)
+	if _, ok := cli.blockedUntil[scope]; !ok && len(cli.blockedUntil) >= maxBlockedScopes {
+		// Evict the block that expires first.
+		first := ""
+		for s, until := range cli.blockedUntil {
+			if first == "" || until.Before(cli.blockedUntil[first]) {
+				first = s
+			}
+		}
+		delete(cli.blockedUntil, first)
+	}
+	cli.blockedUntil[scope] = now.Add(d)
 }
 
 // sendRequest sends a HTTP request to the VirusTotal REST API, honoring
