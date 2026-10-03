@@ -19,8 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -71,13 +69,8 @@ type Client struct {
 	// methods (Get, Post, ...) via RequestOption have preference and will
 	// override these global ones.
 	headers map[string]string
-	// Retry and fail-fast behaviour for 429 responses, see WithMaxRetries,
-	// WithMaxRetryWait and WithQuotaFailFast.
-	maxRetries    int
-	maxRetryWait  time.Duration
-	quotaFailFast bool
-	// blockedUntil maps quota families to the time until which requests
-	// consuming them fail locally because the quota is exhausted.
+	// blockedUntil maps endpoint keys (see endpointKey) to the time until
+	// which requests to them fail locally because the API answered 429.
 	blockedMu    sync.Mutex
 	blockedUntil map[string]time.Time
 }
@@ -122,156 +115,93 @@ func WithGlobalHeader(header, value string) ClientOption {
 	}
 }
 
-// WithMaxRetries sets how many times a request answered with 429 is retried
-// when the server asks to wait at most the duration set by WithMaxRetryWait.
-// The default is 2. Use 0 for disabling retries.
-func WithMaxRetries(n int) ClientOption {
-	return func(c *Client) {
-		c.maxRetries = n
-	}
-}
-
-// WithMaxRetryWait sets the longest Retry-After the client waits for before
-// retrying a request answered with 429. The default is 60 seconds.
-func WithMaxRetryWait(d time.Duration) ClientOption {
-	return func(c *Client) {
-		c.maxRetryWait = d
-	}
-}
-
-// WithQuotaFailFast enables or disables failing locally while a quota is
-// exhausted. When enabled (the default) and the server answers 429 with a
-// Retry-After longer than the one set by WithMaxRetryWait, further requests to
-// the same quota family return the same error without reaching the API until
-// that time has passed. Most endpoints share the general API requests quota;
-// Intelligence downloads and searches and private scanning have their own.
-func WithQuotaFailFast(enabled bool) ClientOption {
-	return func(c *Client) {
-		c.quotaFailFast = enabled
-	}
-}
-
 // NewClient creates a new client for interacting with the VirusTotal API using
 // the provided API key.
 func NewClient(APIKey string, opts ...ClientOption) *Client {
-	c := &Client{
-		APIKey:        APIKey,
-		httpClient:    &http.Client{},
-		maxRetries:    2,
-		maxRetryWait:  60 * time.Second,
-		quotaFailFast: true,
-	}
+	c := &Client{APIKey: APIKey, httpClient: &http.Client{}}
 	for _, o := range opts {
 		o(c)
 	}
 	return c
 }
 
-// quotaFamilies lists the endpoints consuming quotas other than the general
-// API requests quota (hourly/daily/monthly). Everything else shares the general
-// quota, so a 429 there blocks all of it.
-var quotaFamilies = []struct {
-	re     *regexp.Regexp
-	family string
-}{
-	{regexp.MustCompile(`^/files/[^/]+/download(_url)?$`), "intelligence_downloads"},
-	{regexp.MustCompile(`^/file_behaviours/[^/]+/(evtx|memdump|pcap)$`), "intelligence_downloads"},
-	{regexp.MustCompile(`^/intelligence/zip_files(/.*)?$`), "intelligence_downloads"},
-	{regexp.MustCompile(`^/(intelligence/)?search$`), "intelligence_searches"},
-	{regexp.MustCompile(`^/private/.*$`), "private_scanning"},
-}
+// endpointSegment matches the path segments that are part of an endpoint's
+// name (e.g. "files", "download_url"); anything else is an object ID.
+var endpointSegment = regexp.MustCompile(`^[a-z_]+$`)
 
-// quotaFamily returns the quota family consumed by a request to the given URL.
-// Most endpoints consume the general API requests quota ("api_requests"),
-// which is exhausted for all of them at once. A few consume their own quotas
-// (Intelligence downloads and searches, private scanning) and are blocked
-// independently.
-func quotaFamily(u *url.URL) string {
+// endpointKey returns a key identifying the endpoint a request is sent to.
+// Object IDs in the path are replaced by "*", so that all the requests to the
+// same endpoint share the key, e.g. "GET /files/*/download".
+func endpointKey(method string, u *url.URL) string {
 	path := strings.TrimPrefix(u.Path, "/"+strings.Trim(baseURL.Path, "/"))
-	path = "/" + strings.Trim(path, "/")
-	for _, f := range quotaFamilies {
-		if f.re.MatchString(path) {
-			return f.family
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for i, s := range segments {
+		if !endpointSegment.MatchString(s) {
+			segments[i] = "*"
 		}
 	}
-	return "api_requests"
+	return strings.ToUpper(method) + " /" + strings.Join(segments, "/")
 }
 
-// checkBlocked returns a QuotaExceededError if the quota family of the given
-// URL is blocked because the quota is exhausted.
-func (cli *Client) checkBlocked(u *url.URL) error {
-	family := quotaFamily(u)
+// checkBlocked returns a QuotaExceededError if the endpoint is blocked because
+// the API answered a previous request to it with 429.
+func (cli *Client) checkBlocked(key string) error {
 	cli.blockedMu.Lock()
 	defer cli.blockedMu.Unlock()
-	until, ok := cli.blockedUntil[family]
+	until, ok := cli.blockedUntil[key]
 	if !ok {
 		return nil
 	}
 	remaining := time.Until(until)
 	if remaining <= 0 {
-		delete(cli.blockedUntil, family)
+		delete(cli.blockedUntil, key)
 		return nil
 	}
 	return Error{
 		Code: "QuotaExceededError",
 		Message: fmt.Sprintf(
-			"%s quota exceeded, retry in %s (raised by the client without "+
-				"contacting the API)", family, remaining.Round(time.Second)),
+			"%s answered 429 recently, retry in %s (raised by the client "+
+				"without contacting the API)", key, remaining.Round(time.Second)),
 		RetryAfter: remaining,
 	}
 }
 
-func (cli *Client) block(u *url.URL, d time.Duration) {
+func (cli *Client) block(key string, d time.Duration) {
 	cli.blockedMu.Lock()
 	defer cli.blockedMu.Unlock()
+	now := time.Now()
 	if cli.blockedUntil == nil {
 		cli.blockedUntil = map[string]time.Time{}
 	}
-	cli.blockedUntil[quotaFamily(u)] = time.Now().Add(d)
+	// Drop expired blocks so the map doesn't grow with unused endpoints.
+	for k, until := range cli.blockedUntil {
+		if !until.After(now) {
+			delete(cli.blockedUntil, k)
+		}
+	}
+	cli.blockedUntil[key] = now.Add(d)
 }
 
-// sendRequest sends a HTTP request to the VirusTotal REST API, honoring
-// Retry-After on 429 responses. A 429 means the request was not processed, so
-// retrying is safe even for POST requests. Requests whose body can't be
-// re-sent (e.g. streamed uploads) are not retried.
+// sendRequest sends a HTTP request to the VirusTotal REST API. Requests are
+// never retried, but when the API answers 429 with a Retry-After header,
+// further requests to the same endpoint fail locally until that time has
+// passed, without reaching the API.
 func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Response, error) {
-	if err := cli.checkBlocked(url); err != nil {
+	key := endpointKey(method, url)
+	if err := cli.checkBlocked(key); err != nil {
 		return nil, err
 	}
 	req, err := cli.newRequest(method, url, body, headers)
 	if err != nil {
 		return nil, err
 	}
-	retryable := body == nil || req.GetBody != nil
-	for attempt := 0; ; attempt++ {
-		resp, err := (cli.httpClient).Do(req)
-		if err != nil || resp.StatusCode != http.StatusTooManyRequests {
-			return resp, err
-		}
-		retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
-		if retryAfter > cli.maxRetryWait {
-			if cli.quotaFailFast {
-				cli.block(url, retryAfter)
-			}
-			return resp, nil
-		}
-		if !retryable || attempt >= cli.maxRetries {
-			return resp, nil
-		}
-		if resp.Header.Get("Retry-After") == "" {
-			// Exponential backoff with jitter: ~1s, ~2s, ~4s...
-			retryAfter = time.Duration(
-				float64(time.Second<<attempt) * (0.5 + rand.Float64()/2))
-		}
-		io.Copy(ioutil.Discard, resp.Body)
-		resp.Body.Close()
-		time.Sleep(retryAfter)
-		if req.GetBody != nil {
-			if req.Body, err = req.GetBody(); err != nil {
-				return nil, err
-			}
+	resp, err := (cli.httpClient).Do(req)
+	if err == nil && resp.StatusCode == http.StatusTooManyRequests {
+		if retryAfter := parseRetryAfter(resp.Header.Get("Retry-After")); retryAfter > 0 {
+			cli.block(key, retryAfter)
 		}
 	}
+	return resp, err
 }
 
 // newRequest builds a HTTP request to the VirusTotal REST API.

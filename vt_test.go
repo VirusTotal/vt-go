@@ -554,96 +554,77 @@ func respond(status int, retryAfter string, body interface{}) http.HandlerFunc {
 	}
 }
 
-func TestRetryOnShortRetryAfter(t *testing.T) {
-	ts, n := countingServer(t,
-		respond(429, "0", quotaExceededResponse()),
-		respond(200, "", map[string]interface{}{
-			"data": map[string]interface{}{"type": "file", "id": "abc"},
-		}))
-	defer ts.Close()
-	SetHost(ts.URL)
-
-	c := NewClient("apikey")
-	obj, err := c.GetObject(URL("files/abc"))
-	assert.NoError(t, err)
-	assert.Equal(t, "abc", obj.ID())
-	assert.Equal(t, 2, *n)
-}
-
-func TestRetriesAreBounded(t *testing.T) {
+func TestNoRetryOn429(t *testing.T) {
 	ts, n := countingServer(t, respond(429, "0", quotaExceededResponse()))
 	defer ts.Close()
 	SetHost(ts.URL)
 
 	c := NewClient("apikey")
-	_, err := c.GetObject(URL("files/abc"))
+	_, err := c.GetObject(URL("files/abc1"))
 	var vtErr Error
 	assert.True(t, errors.As(err, &vtErr))
 	assert.Equal(t, "QuotaExceededError", vtErr.Code)
-	// The first attempt plus 2 retries.
-	assert.Equal(t, 3, *n)
+	assert.Equal(t, 1, *n)
 }
 
-func TestFailFastOnLongRetryAfter(t *testing.T) {
-	ts, n := countingServer(t, respond(429, "3600", quotaExceededResponse()))
+func TestEndpointBlockedOn429(t *testing.T) {
+	ts, n := countingServer(t,
+		respond(429, "3600", quotaExceededResponse()),
+		respond(200, "", map[string]interface{}{
+			"data": map[string]interface{}{"type": "file", "id": "abc1"},
+		}))
 	defer ts.Close()
 	SetHost(ts.URL)
 
 	c := NewClient("apikey")
-	_, err := c.GetObject(URL("files/abc"))
+	_, err := c.GetObject(URL("files/abc1"))
 	var vtErr Error
 	assert.True(t, errors.As(err, &vtErr))
 	assert.Equal(t, 3600*time.Second, vtErr.RetryAfter)
 	assert.Equal(t, 1, *n)
 
-	// Endpoints sharing the general API quota now fail without reaching the
-	// API.
-	_, err = c.GetObject(URL("urls/def"))
+	// The same endpoint with another ID now fails without reaching the API.
+	_, err = c.GetObject(URL("files/def2"))
 	assert.True(t, errors.As(err, &vtErr))
 	assert.Equal(t, "QuotaExceededError", vtErr.Code)
 	assert.True(t, vtErr.RetryAfter > 3590*time.Second)
 	assert.Equal(t, 1, *n)
 
-	// Endpoints with their own quota still reach the API.
-	c.GetObject(URL("intelligence/search"))
+	// Other endpoints still reach the API.
+	c.GetObject(URL("files/abc1/relationships"))
 	assert.Equal(t, 2, *n)
 }
 
-func TestFailFastCanBeDisabled(t *testing.T) {
-	ts, n := countingServer(t, respond(429, "3600", quotaExceededResponse()))
+func TestNoBlockWithoutRetryAfter(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "", quotaExceededResponse()))
 	defer ts.Close()
 	SetHost(ts.URL)
 
-	c := NewClient("apikey", WithQuotaFailFast(false))
-	c.GetObject(URL("files/abc"))
-	c.GetObject(URL("files/abc"))
+	c := NewClient("apikey")
+	c.GetObject(URL("files/abc1"))
+	c.GetObject(URL("files/abc1"))
 	assert.Equal(t, 2, *n)
 }
 
-func TestFailFastBlockExpires(t *testing.T) {
+func TestEndpointBlockExpires(t *testing.T) {
 	ts, n := countingServer(t, respond(200, "", map[string]interface{}{
-		"data": map[string]interface{}{"type": "file", "id": "abc"},
+		"data": map[string]interface{}{"type": "file", "id": "abc1"},
 	}))
 	defer ts.Close()
 	SetHost(ts.URL)
 
 	c := NewClient("apikey")
-	c.block(URL("files/abc"), -time.Second)
-	_, err := c.GetObject(URL("files/abc"))
+	c.block(endpointKey("GET", URL("files/abc1")), -time.Second)
+	_, err := c.GetObject(URL("files/abc1"))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, *n)
 }
 
-func TestQuotaFamily(t *testing.T) {
+func TestEndpointKey(t *testing.T) {
 	SetHost("https://www.virustotal.com")
-	assert.Equal(t, "api_requests", quotaFamily(URL("files/abc")))
-	assert.Equal(t, "api_requests", quotaFamily(URL("files/abc/relationships")))
-	assert.Equal(t, "api_requests", quotaFamily(URL("urls/abc")))
-	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("files/abc/download")))
-	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("files/abc/download_url")))
-	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("file_behaviours/x/pcap")))
-	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("intelligence/zip_files/1")))
-	assert.Equal(t, "intelligence_searches", quotaFamily(URL("intelligence/search")))
-	assert.Equal(t, "intelligence_searches", quotaFamily(URL("search")))
-	assert.Equal(t, "private_scanning", quotaFamily(URL("private/files/abc/analyse")))
+	assert.Equal(t, "GET /files/*", endpointKey("get", URL("files/abc1")))
+	assert.Equal(t, "GET /files/*/download", endpointKey("GET", URL("files/abc1/download")))
+	assert.Equal(t, "GET /domains/*", endpointKey("GET", URL("domains/example.com")))
+	assert.Equal(t, "POST /intelligence/retrohunt_jobs", endpointKey("POST", URL("intelligence/retrohunt_jobs")))
+	assert.Equal(t, "POST /private/files/*/analyse", endpointKey("POST", URL("private/files/abc1/analyse")))
 }
