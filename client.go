@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -183,9 +184,9 @@ func (cli *Client) block(key string, d time.Duration) {
 }
 
 // sendRequest sends a HTTP request to the VirusTotal REST API. Requests are
-// never retried, but when the API answers 429 with a Retry-After header,
-// further requests to the same endpoint fail locally until that time has
-// passed, without reaching the API.
+// never retried, but when the API answers 429, further requests to the same
+// endpoint fail locally for the time in the Retry-After header (or
+// defaultBlockDuration if it's missing), without reaching the API.
 func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Response, error) {
 	key := endpointKey(method, url)
 	if err := cli.checkBlocked(key); err != nil {
@@ -197,11 +198,50 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	}
 	resp, err := (cli.httpClient).Do(req)
 	if err == nil && resp.StatusCode == http.StatusTooManyRequests {
-		if retryAfter := parseRetryAfter(resp.Header.Get("Retry-After")); retryAfter > 0 {
+		retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
+		if resp.Header.Get("Retry-After") == "" && errorCode(resp) != "QuotaExceededError" {
+			retryAfter = defaultBlockDuration
+		}
+		if retryAfter > 0 {
 			cli.block(key, retryAfter)
 		}
 	}
 	return resp, err
+}
+
+// defaultBlockDuration is how long an endpoint is blocked after a 429 without
+// Retry-After, such as the ones returned by the rate limits at the edge.
+// QuotaExceededError responses without Retry-After are not blocked: those
+// quotas don't reset over time.
+const defaultBlockDuration = 60 * time.Second
+
+// errorCode returns the error code in a JSON error response, or "" if there
+// is none. The body is restored so that it can be read again.
+func errorCode(resp *http.Response) string {
+	if resp.Body == nil || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		return ""
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
+	if err != nil {
+		return ""
+	}
+	var reader io.Reader = bytes.NewReader(data)
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		if reader, err = gzip.NewReader(reader); err != nil {
+			return ""
+		}
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if json.NewDecoder(reader).Decode(&body) != nil {
+		return ""
+	}
+	return body.Error.Code
 }
 
 // newRequest builds a HTTP request to the VirusTotal REST API.

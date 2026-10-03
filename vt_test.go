@@ -595,7 +595,7 @@ func TestEndpointBlockedOn429(t *testing.T) {
 	assert.Equal(t, 2, *n)
 }
 
-func TestNoBlockWithoutRetryAfter(t *testing.T) {
+func TestQuotaErrorWithoutRetryAfterDoesNotBlock(t *testing.T) {
 	ts, n := countingServer(t, respond(429, "", quotaExceededResponse()))
 	defer ts.Close()
 	SetHost(ts.URL)
@@ -604,6 +604,25 @@ func TestNoBlockWithoutRetryAfter(t *testing.T) {
 	c.GetObject(URL("files/abc1"))
 	c.GetObject(URL("files/abc1"))
 	assert.Equal(t, 2, *n)
+}
+
+func TestEdge429WithoutRetryAfterBlocksByDefault(t *testing.T) {
+	ts, n := countingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(429)
+		w.Write([]byte("<title>429</title>429 Too Many Requests"))
+	})
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	c.GetObject(URL("files/abc1"))
+	_, err := c.GetObject(URL("files/abc1"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.True(t, vtErr.RetryAfter > 50*time.Second && vtErr.RetryAfter <= 60*time.Second)
+	assert.Equal(t, 1, *n)
 }
 
 func TestEndpointBlockExpires(t *testing.T) {
