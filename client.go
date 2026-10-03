@@ -23,6 +23,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -75,8 +76,8 @@ type Client struct {
 	maxRetries    int
 	maxRetryWait  time.Duration
 	quotaFailFast bool
-	// blockedUntil maps endpoint families to the time until which requests to
-	// them fail locally because a quota is exhausted.
+	// blockedUntil maps quota families to the time until which requests
+	// consuming them fail locally because the quota is exhausted.
 	blockedMu    sync.Mutex
 	blockedUntil map[string]time.Time
 }
@@ -141,8 +142,9 @@ func WithMaxRetryWait(d time.Duration) ClientOption {
 // WithQuotaFailFast enables or disables failing locally while a quota is
 // exhausted. When enabled (the default) and the server answers 429 with a
 // Retry-After longer than the one set by WithMaxRetryWait, further requests to
-// the same endpoint family return the same error without reaching the API
-// until that time has passed.
+// the same quota family return the same error without reaching the API until
+// that time has passed. Most endpoints share the general API requests quota;
+// Intelligence downloads and searches and private scanning have their own.
 func WithQuotaFailFast(enabled bool) ClientOption {
 	return func(c *Client) {
 		c.quotaFailFast = enabled
@@ -165,63 +167,59 @@ func NewClient(APIKey string, opts ...ClientOption) *Client {
 	return c
 }
 
-// twoSegmentScopes are endpoint families with their own quotas, identified by
-// their first two path segments instead of just the first one.
-var twoSegmentScopes = map[string]bool{
-	"intelligence": true,
-	"monitor":      true,
-	"private":      true,
-	"feeds":        true,
+// quotaFamilies lists the endpoints consuming quotas other than the general
+// API requests quota (hourly/daily/monthly). Everything else shares the general
+// quota, so a 429 there blocks all of it.
+var quotaFamilies = []struct {
+	re     *regexp.Regexp
+	family string
+}{
+	{regexp.MustCompile(`^/files/[^/]+/download(_url)?$`), "intelligence_downloads"},
+	{regexp.MustCompile(`^/file_behaviours/[^/]+/(evtx|memdump|pcap)$`), "intelligence_downloads"},
+	{regexp.MustCompile(`^/intelligence/zip_files(/.*)?$`), "intelligence_downloads"},
+	{regexp.MustCompile(`^/(intelligence/)?search$`), "intelligence_searches"},
+	{regexp.MustCompile(`^/private/.*$`), "private_scanning"},
 }
 
-// rateLimitScope returns the endpoint family a URL belongs to, e.g. "/files".
-// Quota blocks are remembered per endpoint family, so that exhausting one
-// quota (e.g. Intelligence searches) doesn't block unrelated endpoints.
-func rateLimitScope(u *url.URL) string {
+// quotaFamily returns the quota family consumed by a request to the given URL.
+// Most endpoints consume the general API requests quota ("api_requests"),
+// which is exhausted for all of them at once. A few consume their own quotas
+// (Intelligence downloads and searches, private scanning) and are blocked
+// independently.
+func quotaFamily(u *url.URL) string {
 	path := strings.TrimPrefix(u.Path, "/"+strings.Trim(baseURL.Path, "/"))
-	var parts []string
-	for _, part := range strings.Split(path, "/") {
-		if part != "" {
-			parts = append(parts, part)
+	path = "/" + strings.Trim(path, "/")
+	for _, f := range quotaFamilies {
+		if f.re.MatchString(path) {
+			return f.family
 		}
 	}
-	if len(parts) == 0 {
-		return "/"
-	}
-	if twoSegmentScopes[parts[0]] && len(parts) > 1 {
-		return "/" + parts[0] + "/" + parts[1]
-	}
-	return "/" + parts[0]
+	return "api_requests"
 }
 
-// checkBlocked returns a QuotaExceededError if the endpoint family of the
-// given URL is blocked because a quota is exhausted.
+// checkBlocked returns a QuotaExceededError if the quota family of the given
+// URL is blocked because the quota is exhausted.
 func (cli *Client) checkBlocked(u *url.URL) error {
-	scope := rateLimitScope(u)
+	family := quotaFamily(u)
 	cli.blockedMu.Lock()
 	defer cli.blockedMu.Unlock()
-	until, ok := cli.blockedUntil[scope]
+	until, ok := cli.blockedUntil[family]
 	if !ok {
 		return nil
 	}
 	remaining := time.Until(until)
 	if remaining <= 0 {
-		delete(cli.blockedUntil, scope)
+		delete(cli.blockedUntil, family)
 		return nil
 	}
 	return Error{
 		Code: "QuotaExceededError",
 		Message: fmt.Sprintf(
-			"Quota exceeded for %s endpoints, retry in %s (raised by the client "+
-				"without contacting the API)", scope, remaining.Round(time.Second)),
+			"%s quota exceeded, retry in %s (raised by the client without "+
+				"contacting the API)", family, remaining.Round(time.Second)),
 		RetryAfter: remaining,
 	}
 }
-
-// maxBlockedScopes is an upper bound for the number of blocked endpoint
-// families remembered by a client. Families are a small fixed set (one per API
-// route family), so this is just a safeguard against unbounded growth.
-var maxBlockedScopes = 256
 
 func (cli *Client) block(u *url.URL, d time.Duration) {
 	cli.blockedMu.Lock()
@@ -229,25 +227,7 @@ func (cli *Client) block(u *url.URL, d time.Duration) {
 	if cli.blockedUntil == nil {
 		cli.blockedUntil = map[string]time.Time{}
 	}
-	now := time.Now()
-	// Drop expired blocks so that the map only holds active ones.
-	for scope, until := range cli.blockedUntil {
-		if !until.After(now) {
-			delete(cli.blockedUntil, scope)
-		}
-	}
-	scope := rateLimitScope(u)
-	if _, ok := cli.blockedUntil[scope]; !ok && len(cli.blockedUntil) >= maxBlockedScopes {
-		// Evict the block that expires first.
-		first := ""
-		for s, until := range cli.blockedUntil {
-			if first == "" || until.Before(cli.blockedUntil[first]) {
-				first = s
-			}
-		}
-		delete(cli.blockedUntil, first)
-	}
-	cli.blockedUntil[scope] = now.Add(d)
+	cli.blockedUntil[quotaFamily(u)] = time.Now().Add(d)
 }
 
 // sendRequest sends a HTTP request to the VirusTotal REST API, honoring

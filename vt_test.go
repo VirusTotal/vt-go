@@ -596,15 +596,16 @@ func TestFailFastOnLongRetryAfter(t *testing.T) {
 	assert.Equal(t, 3600*time.Second, vtErr.RetryAfter)
 	assert.Equal(t, 1, *n)
 
-	// The same endpoint family now fails without reaching the API.
-	_, err = c.GetObject(URL("files/def/relationships"))
+	// Endpoints sharing the general API quota now fail without reaching the
+	// API.
+	_, err = c.GetObject(URL("urls/def"))
 	assert.True(t, errors.As(err, &vtErr))
 	assert.Equal(t, "QuotaExceededError", vtErr.Code)
 	assert.True(t, vtErr.RetryAfter > 3590*time.Second)
 	assert.Equal(t, 1, *n)
 
-	// Other endpoint families still reach the API.
-	c.GetObject(URL("urls/abc"))
+	// Endpoints with their own quota still reach the API.
+	c.GetObject(URL("intelligence/search"))
 	assert.Equal(t, 2, *n)
 }
 
@@ -633,30 +634,16 @@ func TestFailFastBlockExpires(t *testing.T) {
 	assert.Equal(t, 1, *n)
 }
 
-func TestRateLimitScope(t *testing.T) {
+func TestQuotaFamily(t *testing.T) {
 	SetHost("https://www.virustotal.com")
-	assert.Equal(t, "/files", rateLimitScope(URL("files/abc")))
-	assert.Equal(t, "/files", rateLimitScope(URL("files/abc/relationships")))
-	assert.Equal(t, "/intelligence/search", rateLimitScope(URL("intelligence/search")))
-	assert.Equal(t, "/monitor/items", rateLimitScope(URL("monitor/items/x")))
-}
-
-func TestBlockedScopesAreBounded(t *testing.T) {
-	SetHost("https://www.virustotal.com")
-	defer func(n int) { maxBlockedScopes = n }(maxBlockedScopes)
-	maxBlockedScopes = 3
-
-	c := NewClient("apikey")
-	c.block(URL("a"), -time.Second) // already expired
-	c.block(URL("b"), time.Hour)
-	c.block(URL("c"), time.Hour)
-	// "/a" is expired and dropped.
-	assert.Len(t, c.blockedUntil, 2)
-
-	c.block(URL("d"), time.Minute)
-	// The limit is reached: the block expiring first ("/d") is evicted.
-	c.block(URL("e"), time.Hour)
-	assert.Len(t, c.blockedUntil, 3)
-	_, ok := c.blockedUntil["/d"]
-	assert.False(t, ok)
+	assert.Equal(t, "api_requests", quotaFamily(URL("files/abc")))
+	assert.Equal(t, "api_requests", quotaFamily(URL("files/abc/relationships")))
+	assert.Equal(t, "api_requests", quotaFamily(URL("urls/abc")))
+	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("files/abc/download")))
+	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("files/abc/download_url")))
+	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("file_behaviours/x/pcap")))
+	assert.Equal(t, "intelligence_downloads", quotaFamily(URL("intelligence/zip_files/1")))
+	assert.Equal(t, "intelligence_searches", quotaFamily(URL("intelligence/search")))
+	assert.Equal(t, "intelligence_searches", quotaFamily(URL("search")))
+	assert.Equal(t, "private_scanning", quotaFamily(URL("private/files/abc/analyse")))
 }
