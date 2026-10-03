@@ -517,3 +517,133 @@ func TestParseRetryAfter(t *testing.T) {
 	past := time.Now().Add(-time.Minute).UTC().Format(http.TimeFormat)
 	assert.Equal(t, time.Duration(0), parseRetryAfter(past))
 }
+
+func quotaExceededResponse() map[string]interface{} {
+	return map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    "QuotaExceededError",
+			"message": "Quota exceeded",
+		},
+	}
+}
+
+// countingServer answers with the given handlers in order (repeating the last
+// one) and counts the requests received.
+func countingServer(t *testing.T, handlers ...http.HandlerFunc) (*httptest.Server, *int) {
+	n := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		i := n
+		if i >= len(handlers) {
+			i = len(handlers) - 1
+		}
+		n++
+		handlers[i](w, r)
+	}))
+	return ts, &n
+}
+
+func respond(status int, retryAfter string, body interface{}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if retryAfter != "" {
+			w.Header().Set("Retry-After", retryAfter)
+		}
+		w.WriteHeader(status)
+		js, _ := json.Marshal(body)
+		w.Write(js)
+	}
+}
+
+func TestNoRetryOn429(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "0", quotaExceededResponse()))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abc1"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.Equal(t, 1, *n)
+}
+
+func TestEndpointBlockedOn429(t *testing.T) {
+	ts, n := countingServer(t,
+		respond(429, "3600", quotaExceededResponse()),
+		respond(200, "", map[string]interface{}{
+			"data": map[string]interface{}{"type": "file", "id": "abc1"},
+		}))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abc1"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, 3600*time.Second, vtErr.RetryAfter)
+	assert.Equal(t, 1, *n)
+
+	// The same endpoint with another ID now fails without reaching the API.
+	_, err = c.GetObject(URL("files/def2"))
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.True(t, vtErr.RetryAfter > 3590*time.Second)
+	assert.Equal(t, 1, *n)
+
+	// Other endpoints still reach the API.
+	c.GetObject(URL("files/abc1/relationships"))
+	assert.Equal(t, 2, *n)
+}
+
+func TestQuotaErrorWithoutRetryAfterDoesNotBlock(t *testing.T) {
+	ts, n := countingServer(t, respond(429, "", quotaExceededResponse()))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	c.GetObject(URL("files/abc1"))
+	c.GetObject(URL("files/abc1"))
+	assert.Equal(t, 2, *n)
+}
+
+func TestEdge429WithoutRetryAfterBlocksByDefault(t *testing.T) {
+	ts, n := countingServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(429)
+		w.Write([]byte("<title>429</title>429 Too Many Requests"))
+	})
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	c.GetObject(URL("files/abc1"))
+	_, err := c.GetObject(URL("files/abc1"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.True(t, vtErr.RetryAfter > 50*time.Second && vtErr.RetryAfter <= 60*time.Second)
+	assert.Equal(t, 1, *n)
+}
+
+func TestEndpointBlockExpires(t *testing.T) {
+	ts, n := countingServer(t, respond(200, "", map[string]interface{}{
+		"data": map[string]interface{}{"type": "file", "id": "abc1"},
+	}))
+	defer ts.Close()
+	SetHost(ts.URL)
+
+	c := NewClient("apikey")
+	c.block(endpointKey("GET", URL("files/abc1")), -time.Second)
+	_, err := c.GetObject(URL("files/abc1"))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, *n)
+}
+
+func TestEndpointKey(t *testing.T) {
+	SetHost("https://www.virustotal.com")
+	assert.Equal(t, "GET /files/*", endpointKey("get", URL("files/abc1")))
+	assert.Equal(t, "GET /files/*/download", endpointKey("GET", URL("files/abc1/download")))
+	assert.Equal(t, "GET /domains/*", endpointKey("GET", URL("domains/example.com")))
+	assert.Equal(t, "POST /intelligence/retrohunt_jobs", endpointKey("POST", URL("intelligence/retrohunt_jobs")))
+	assert.Equal(t, "POST /private/files/*/analyse", endpointKey("POST", URL("private/files/abc1/analyse")))
+}

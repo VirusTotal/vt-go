@@ -19,10 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -67,6 +70,10 @@ type Client struct {
 	// methods (Get, Post, ...) via RequestOption have preference and will
 	// override these global ones.
 	headers map[string]string
+	// blockedUntil maps endpoint keys (see endpointKey) to the time until
+	// which requests to them fail locally because the API answered 429.
+	blockedMu    sync.Mutex
+	blockedUntil map[string]time.Time
 }
 
 // WithHeader specifies a header to be included in the request, it will override
@@ -119,8 +126,126 @@ func NewClient(APIKey string, opts ...ClientOption) *Client {
 	return c
 }
 
-// sendRequest sends a HTTP request to the VirusTotal REST API.
+// endpointSegment matches the path segments that are part of an endpoint's
+// name (e.g. "files", "download_url"); anything else is an object ID.
+var endpointSegment = regexp.MustCompile(`^[a-z_]+$`)
+
+// endpointKey returns a key identifying the endpoint a request is sent to.
+// Object IDs in the path are replaced by "*", so that all the requests to the
+// same endpoint share the key, e.g. "GET /files/*/download".
+func endpointKey(method string, u *url.URL) string {
+	path := strings.TrimPrefix(u.Path, "/"+strings.Trim(baseURL.Path, "/"))
+	segments := strings.Split(strings.Trim(path, "/"), "/")
+	for i, s := range segments {
+		if !endpointSegment.MatchString(s) {
+			segments[i] = "*"
+		}
+	}
+	return strings.ToUpper(method) + " /" + strings.Join(segments, "/")
+}
+
+// checkBlocked returns a QuotaExceededError if the endpoint is blocked because
+// the API answered a previous request to it with 429.
+func (cli *Client) checkBlocked(key string) error {
+	cli.blockedMu.Lock()
+	defer cli.blockedMu.Unlock()
+	until, ok := cli.blockedUntil[key]
+	if !ok {
+		return nil
+	}
+	remaining := time.Until(until)
+	if remaining <= 0 {
+		delete(cli.blockedUntil, key)
+		return nil
+	}
+	return Error{
+		Code: "QuotaExceededError",
+		Message: fmt.Sprintf(
+			"%s answered 429 recently, retry in %s (raised by the client "+
+				"without contacting the API)", key, remaining.Round(time.Second)),
+		RetryAfter: remaining,
+	}
+}
+
+func (cli *Client) block(key string, d time.Duration) {
+	cli.blockedMu.Lock()
+	defer cli.blockedMu.Unlock()
+	now := time.Now()
+	if cli.blockedUntil == nil {
+		cli.blockedUntil = map[string]time.Time{}
+	}
+	// Drop expired blocks so the map doesn't grow with unused endpoints.
+	for k, until := range cli.blockedUntil {
+		if !until.After(now) {
+			delete(cli.blockedUntil, k)
+		}
+	}
+	cli.blockedUntil[key] = now.Add(d)
+}
+
+// sendRequest sends a HTTP request to the VirusTotal REST API. Requests are
+// never retried, but when the API answers 429, further requests to the same
+// endpoint fail locally for the time in the Retry-After header (or
+// defaultBlockDuration if it's missing), without reaching the API.
 func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Response, error) {
+	key := endpointKey(method, url)
+	if err := cli.checkBlocked(key); err != nil {
+		return nil, err
+	}
+	req, err := cli.newRequest(method, url, body, headers)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := (cli.httpClient).Do(req)
+	if err == nil && resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
+		if resp.Header.Get("Retry-After") == "" && errorCode(resp) != "QuotaExceededError" {
+			retryAfter = defaultBlockDuration
+		}
+		if retryAfter > 0 {
+			cli.block(key, retryAfter)
+		}
+	}
+	return resp, err
+}
+
+// defaultBlockDuration is how long an endpoint is blocked after a 429 without
+// Retry-After, such as the ones returned by the rate limits at the edge.
+// QuotaExceededError responses without Retry-After are not blocked: those
+// quotas don't reset over time.
+const defaultBlockDuration = 60 * time.Second
+
+// errorCode returns the error code in a JSON error response, or "" if there
+// is none. The body is restored so that it can be read again.
+func errorCode(resp *http.Response) string {
+	if resp.Body == nil || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		return ""
+	}
+	data, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
+	if err != nil {
+		return ""
+	}
+	var reader io.Reader = bytes.NewReader(data)
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		if reader, err = gzip.NewReader(reader); err != nil {
+			return ""
+		}
+	}
+	var body struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if json.NewDecoder(reader).Decode(&body) != nil {
+		return ""
+	}
+	return body.Error.Code
+}
+
+// newRequest builds a HTTP request to the VirusTotal REST API.
+func (cli *Client) newRequest(method string, url *url.URL, body io.Reader, headers map[string]string) (*http.Request, error) {
 	req, err := http.NewRequest(method, url.String(), body)
 	if err != nil {
 		return nil, err
@@ -147,7 +272,7 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 		req.Header.Set(k, v)
 	}
 
-	return (cli.httpClient).Do(req)
+	return req, nil
 }
 
 // parseRetryAfter parses the value of a Retry-After header, which can be
