@@ -660,4 +660,3 @@ func TestBlockedScopesAreBounded(t *testing.T) {
 	_, ok := c.blockedUntil["/d"]
 	assert.False(t, ok)
 }
-
