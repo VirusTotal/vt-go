@@ -33,6 +33,7 @@ type TestServer struct {
 	expectedBody    string
 	status          int
 	expectedHeaders map[string]string
+	responseHeaders map[string]string
 }
 
 func NewTestServer(t *testing.T) *TestServer {
@@ -53,6 +54,14 @@ func (ts *TestServer) SetResponse(r interface{}) *TestServer {
 
 func (ts *TestServer) SetStatusCode(s int) *TestServer {
 	ts.status = s
+	return ts
+}
+
+func (ts *TestServer) SetResponseHeader(name, value string) *TestServer {
+	if ts.responseHeaders == nil {
+		ts.responseHeaders = map[string]string{}
+	}
+	ts.responseHeaders[name] = value
 	return ts
 }
 
@@ -101,6 +110,9 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	for name, value := range ts.responseHeaders {
+		w.Header().Set(name, value)
+	}
 	if ts.status != 0 {
 		w.WriteHeader(ts.status)
 	}
@@ -467,4 +479,41 @@ func TestGetObjectOutOfQuota(t *testing.T) {
 			t.Fatalf("Error getting object from VT: %s", err)
 		}
 	}
+}
+
+func TestGetObjectOutOfQuotaRetryAfter(t *testing.T) {
+	ts := NewTestServer(t).
+		SetExpectedMethod("GET").
+		SetStatusCode(429).
+		SetResponseHeader("Retry-After", "120").
+		SetResponse(map[string]interface{}{
+			"error": map[string]interface{}{
+				"code":    "QuotaExceededError",
+				"message": "Quota exceeded",
+			},
+		})
+
+	defer ts.Close()
+
+	SetHost(ts.URL)
+	c := NewClient("apikey")
+	_, err := c.GetObject(URL("files/abcabcabcabcabc"))
+	var vtErr Error
+	assert.True(t, errors.As(err, &vtErr))
+	assert.Equal(t, "QuotaExceededError", vtErr.Code)
+	assert.Equal(t, 120*time.Second, vtErr.RetryAfter)
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	assert.Equal(t, time.Duration(0), parseRetryAfter(""))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("not-a-date"))
+	assert.Equal(t, time.Duration(0), parseRetryAfter("-5"))
+	assert.Equal(t, 60*time.Second, parseRetryAfter(" 60 "))
+
+	retryAt := time.Now().Add(10 * time.Minute).UTC().Format(http.TimeFormat)
+	wait := parseRetryAfter(retryAt)
+	assert.True(t, wait > 9*time.Minute && wait <= 10*time.Minute)
+
+	past := time.Now().Add(-time.Minute).UTC().Format(http.TimeFormat)
+	assert.Equal(t, time.Duration(0), parseRetryAfter(past))
 }

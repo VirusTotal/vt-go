@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 )
 
 const (
@@ -57,6 +58,9 @@ type Response struct {
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// RetryAfter is how long the server asked to wait before retrying, taken
+	// from the Retry-After response header. It's zero if the header was absent.
+	RetryAfter time.Duration `json:"-"`
 }
 
 // Error implements the error interface.

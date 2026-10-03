@@ -21,7 +21,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 )
 
 type requestOptions struct {
@@ -148,6 +150,28 @@ func (cli *Client) sendRequest(method string, url *url.URL, body io.Reader, head
 	return (cli.httpClient).Do(req)
 }
 
+// parseRetryAfter parses the value of a Retry-After header, which can be
+// either a number of seconds or an HTTP date. It returns zero if the value is
+// empty or can't be parsed.
+func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if retryAt, err := http.ParseTime(value); err == nil {
+		if wait := time.Until(retryAt); wait > 0 {
+			return wait
+		}
+	}
+	return 0
+}
+
 // parseResponse parses a HTTP response received from the VirusTotal REST API.
 // If a valid JSON response was received from the server this function returns
 // a pointer to a Response structure. An error is returned either if the response
@@ -186,6 +210,7 @@ func (cli *Client) parseResponse(resp *http.Response) (*Response, error) {
 
 	// Check if the response was an error
 	if apiresp.Error.Code != "" {
+		apiresp.Error.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"))
 		return apiresp, apiresp.Error
 	}
 
